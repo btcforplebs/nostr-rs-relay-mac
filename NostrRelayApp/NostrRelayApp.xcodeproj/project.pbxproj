@@ -1,0 +1,430 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AAAA0001 /* NostrRelayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0001 /* NostrRelayApp.swift */; };
+		AAAA0003 /* NostrEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0003 /* NostrEvent.swift */; };
+		AAAA0004 /* MediaItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0004 /* MediaItem.swift */; };
+		AAAA0005 /* ConfigurationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0005 /* ConfigurationService.swift */; };
+		AAAA0006 /* RelayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0006 /* RelayService.swift */; };
+		AAAA0007 /* WebSocketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0007 /* WebSocketClient.swift */; };
+		AAAA0008 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0008 /* DashboardView.swift */; };
+		AAAA0009 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0009 /* SettingsView.swift */; };
+		AAAA0014 /* LogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0014 /* LogsView.swift */; };
+		AAAA0015 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FFFF0015 /* Assets.xcassets */; };
+		AAAA0016 /* nostr-rs-relay in Resources */ = {isa = PBXBuildFile; fileRef = FFFF0016 /* nostr-rs-relay */; };
+		AAAA0017 /* templates in Resources */ = {isa = PBXBuildFile; fileRef = FFFF0017 /* templates */; };
+		AAAA0018 /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0018 /* ColorExtension.swift */; };
+		AAAA0025 /* EventViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0025 /* EventViewer.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		FFFF0001 /* NostrRelayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrRelayApp.swift; sourceTree = "<group>"; };
+		FFFF0003 /* NostrEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrEvent.swift; sourceTree = "<group>"; };
+		FFFF0004 /* MediaItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaItem.swift; sourceTree = "<group>"; };
+		FFFF0005 /* ConfigurationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationService.swift; sourceTree = "<group>"; };
+		FFFF0006 /* RelayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayService.swift; sourceTree = "<group>"; };
+		FFFF0007 /* WebSocketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketClient.swift; sourceTree = "<group>"; };
+		FFFF0008 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		FFFF0009 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		FFFF0014 /* LogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsView.swift; sourceTree = "<group>"; };
+		FFFF0015 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FFFF0016 /* nostr-rs-relay */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = nostr-rs-relay; sourceTree = "<group>"; };
+		FFFF0017 /* templates */ = {isa = PBXFileReference; lastKnownFileType = folder; path = templates; sourceTree = "<group>"; };
+		FFFF0018 /* ColorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
+		FFFF0020 /* NostrRelayApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NostrRelayApp.entitlements; sourceTree = "<group>"; };
+		FFFF0099 /* NostrRelayApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NostrRelayApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FFFF0025 /* EventViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventViewer.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		GGGG0001 = {
+			isa = PBXGroup;
+			children = (
+				GGGG0002 /* NostrRelayApp/App */,
+				GGGG0003 /* NostrRelayApp/Models */,
+				GGGG0004 /* NostrRelayApp/Services */,
+				GGGG0005 /* NostrRelayApp/Views */,
+				GGGG0006 /* NostrRelayApp/Resources */,
+				GGGG0099 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		GGGG0002 /* NostrRelayApp/App */ = {
+			isa = PBXGroup;
+			children = (
+				FFFF0001 /* NostrRelayApp.swift */,
+				FFFF0020 /* NostrRelayApp.entitlements */,
+			);
+			path = NostrRelayApp/App;
+			sourceTree = "<group>";
+		};
+		GGGG0003 /* NostrRelayApp/Models */ = {
+			isa = PBXGroup;
+			children = (
+				FFFF0003 /* NostrEvent.swift */,
+				FFFF0004 /* MediaItem.swift */,
+			);
+			path = NostrRelayApp/Models;
+			sourceTree = "<group>";
+		};
+		GGGG0004 /* NostrRelayApp/Services */ = {
+			isa = PBXGroup;
+			children = (
+				FFFF0005 /* ConfigurationService.swift */,
+				FFFF0006 /* RelayService.swift */,
+				FFFF0007 /* WebSocketClient.swift */,
+			);
+			path = NostrRelayApp/Services;
+			sourceTree = "<group>";
+		};
+		GGGG0005 /* NostrRelayApp/Views */ = {
+			isa = PBXGroup;
+			children = (
+				FFFF0008 /* DashboardView.swift */,
+				FFFF0009 /* SettingsView.swift */,
+				FFFF0014 /* LogsView.swift */,
+				FFFF0025 /* EventViewer.swift */,
+			);
+			path = NostrRelayApp/Views;
+			sourceTree = "<group>";
+		};
+		GGGG0006 /* NostrRelayApp/Resources */ = {
+			isa = PBXGroup;
+			children = (
+				FFFF0015 /* Assets.xcassets */,
+				FFFF0016 /* nostr-rs-relay */,
+				FFFF0017 /* templates */,
+				FFFF0018 /* ColorExtension.swift */,
+			);
+			path = NostrRelayApp/Resources;
+			sourceTree = "<group>";
+		};
+		GGGG0099 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				FFFF0099 /* NostrRelayApp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		TTTT0001 /* NostrRelayApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CCCC0001 /* Build configuration list for PBXNativeTarget "NostrRelayApp" */;
+			buildPhases = (
+				PPPP0001 /* Sources */,
+				PPPP0002 /* Resources */,
+				BBBB0001 /* Sign Go Binary */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NostrRelayApp;
+			productName = NostrRelayApp;
+			productReference = FFFF0099 /* NostrRelayApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		PPPP9999 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1510;
+				LastUpgradeCheck = 1510;
+				TargetAttributes = {
+					TTTT0001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = CCCC9999 /* Build configuration list for PBXProject "NostrRelayApp" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = GGGG0001;
+			productRefGroup = GGGG0099 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				TTTT0001 /* NostrRelayApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		PPPP0002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAAA0015 /* Assets.xcassets in Resources */,
+				AAAA0016 /* nostr-rs-relay in Resources */,
+				AAAA0017 /* templates in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		PPPP0001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAAA0001 /* NostrRelayApp.swift in Sources */,
+				AAAA0003 /* NostrEvent.swift in Sources */,
+				AAAA0004 /* MediaItem.swift in Sources */,
+				AAAA0005 /* ConfigurationService.swift in Sources */,
+				AAAA0006 /* RelayService.swift in Sources */,
+				AAAA0007 /* WebSocketClient.swift in Sources */,
+				AAAA0008 /* DashboardView.swift in Sources */,
+				AAAA0009 /* SettingsView.swift in Sources */,
+				AAAA0014 /* LogsView.swift in Sources */,
+				AAAA0018 /* ColorExtension.swift in Sources */,
+				AAAA0025 /* EventViewer.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		BBBB0001 /* Sign Go Binary */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/NostrRelayApp/App/sign_relay.sh",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/nostr-rs-relay",
+				"$(PROJECT_DIR)/NostrRelayApp/App/NostrRelayApp.entitlements",
+			);
+			name = "Sign Go Binary";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"$PROJECT_DIR/NostrRelayApp/App/sign_relay.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		CCCC0002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_STRING_CATALOG_SYMBOL_GENERATION = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		CCCC0003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_STRING_CATALOG_SYMBOL_GENERATION = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		CCCC0004 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = KAD7WNBGH2;
+				CODE_SIGN_ENTITLEMENTS = NostrRelayApp/App/NostrRelayApp.entitlements;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bitvora.NostrRelayApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CCCC0005 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = KAD7WNBGH2;
+				CODE_SIGN_ENTITLEMENTS = NostrRelayApp/App/NostrRelayApp.entitlements;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bitvora.NostrRelayApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CCCC0001 /* Build configuration list for PBXNativeTarget "NostrRelayApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CCCC0004 /* Debug */,
+				CCCC0005 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CCCC9999 /* Build configuration list for PBXProject "NostrRelayApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CCCC0002 /* Debug */,
+				CCCC0003 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = PPPP9999 /* Project object */;
+}
