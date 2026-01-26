@@ -86,7 +86,7 @@ struct AdvancedSettingsView: View {
         VStack(alignment: .leading) {
             Toggle("Enable Manual Configuration (Edit config.toml directly)", isOn: $configService.config.appSpecific.useManualConfig)
                 .padding(.bottom)
-                .onChange(of: configService.config.appSpecific.useManualConfig) { newValue in
+                .onChange(of: configService.config.appSpecific.useManualConfig) { _, newValue in
                     configService.save() // Save the toggle state
                     if !newValue {
                         // Reload from generated if we turn off manual mode

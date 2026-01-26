@@ -57,7 +57,7 @@ class WebSocketClient: NSObject, ObservableObject, URLSessionWebSocketDelegate {
             guard !self.isIntentionalDisconnect else { return }
             
             switch result {
-            case .failure(let error):
+            case .failure(_):
                 // Don't spam console if we act on it later
                 // print("WebSocket receive failure: \(error.localizedDescription)")
                 DispatchQueue.main.async {

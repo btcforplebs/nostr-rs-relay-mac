@@ -32,7 +32,7 @@ struct LogsView: View {
                 .id(log.id)
             }
             .listStyle(.plain)
-            .onChange(of: relayService.logs.count) { _ in
+            .onChange(of: relayService.logs.count) { _, _ in
                 if let last = relayService.logs.last {
                     proxy.scrollTo(last.id, anchor: .bottom)
                 }
