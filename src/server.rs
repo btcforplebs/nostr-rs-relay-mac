@@ -1068,80 +1068,65 @@ fn make_notice_message(notice: &Notice) -> Message {
     Message::text(json.to_string())
 }
 
-fn allowed_to_send(event_str: &str, conn: &conn::ClientConn, settings: &Settings, dedup_cache: Option<&Arc<DedupCache>>) -> bool {
-    // Check spam filter first
-    if settings.spam_filter.enabled {
-        match serde_json::from_str::<Event>(event_str) {
-            Ok(event) => {
-                // Check blocked pubkeys
-                if let Some(blocked_pubkeys) = &settings.spam_filter.blocked_pubkeys {
-                    if blocked_pubkeys.contains(&event.pubkey) {
-                         // Check if whitelisted
-                        if let Some(whitelist) = &settings.spam_filter.whitelist {
-                            if whitelist.contains(&event.pubkey) {
-                                // proceed to next checks
-                            } else {
-                                warn!("Blocked event from banned pubkey: {}", event.pubkey);
-                                return false;
-                            }
-                        } else {
-                            warn!("Blocked event from banned pubkey: {}", event.pubkey);
-                            return false;
-                        }
-                    }
-                }
-
-                // Check blocked content
-                if let Some(blocked_content) = &settings.spam_filter.blocked_content {
-                    for phrase in blocked_content {
-                        if event.content.contains(phrase) {
-                            warn!("Blocked event with banned content: {}", phrase);
-                            return false;
-                        }
-                    }
-                }
-                
-                // Check deduplication
-                if let Some(cache) = dedup_cache {
-                    // Only dedicate Kind 1 (Text Note) for now, or all events? 
-                    // User asked for "spamming the relay with the same message status", implied text.
-                    // But blocking duplicates universally is safer for spam.
-                    if cache.check_and_add(&event.pubkey, &event.content) {
-                        warn!("Blocked duplicate event from: {}", event.pubkey);
-                        return false;
-                    }
-                }
-                
-                // Re-serialize check not strictly needed since we have the object but legacy function signature takes str
-                // We'll fall through to existing logic
-            }
-            Err(_) => {
-                // If we can't parse it to check spam, maybe we should block it? 
-                // But let the existing logic handle malformed json if any.
-            }
-        }
-    }
-
-    // TODO: pass in kind so that we can avoid deserialization for most events
+// Check if an event is allowed to be sent (NIP-42 DMS)
+fn allowed_to_send(event: &Event, conn: &conn::ClientConn, settings: &Settings) -> bool {
     if settings.authorization.nip42_dms {
-        match serde_json::from_str::<Event>(event_str) {
-            Ok(event) => {
-                if event.kind == 4 || event.kind == 44 || event.kind == 1059 {
-                    match (conn.auth_pubkey(), event.tag_values_by_name("p").first()) {
-                        (Some(auth_pubkey), Some(recipient_pubkey)) => {
-                            recipient_pubkey == auth_pubkey || &event.pubkey == auth_pubkey
-                        }
-                        (_, _) => false,
-                    }
-                } else {
-                    true
+        if event.kind == 4 || event.kind == 44 || event.kind == 1059 {
+            match (conn.auth_pubkey(), event.tag_values_by_name("p").first()) {
+                (Some(auth_pubkey), Some(recipient_pubkey)) => {
+                    recipient_pubkey == auth_pubkey || &event.pubkey == auth_pubkey
                 }
+                (_, _) => false,
             }
-            Err(_) => false,
+        } else {
+            true
         }
     } else {
         true
     }
+}
+
+fn check_spam(event: &Event, settings: &Settings, dedup_cache: Option<&Arc<DedupCache>>) -> Result<(), String> {
+    if !settings.spam_filter.enabled {
+        return Ok(());
+    }
+
+    // Check blocked pubkeys
+    if let Some(blocked_pubkeys) = &settings.spam_filter.blocked_pubkeys {
+        if blocked_pubkeys.contains(&event.pubkey) {
+             // Check if whitelisted
+            let whitelisted = if let Some(whitelist) = &settings.spam_filter.whitelist {
+                whitelist.contains(&event.pubkey)
+            } else {
+                false
+            };
+            
+            if !whitelisted {
+                warn!("Blocked event from banned pubkey: {}", event.pubkey);
+                return Err("blocked: pubkey banned".to_string());
+            }
+        }
+    }
+
+    // Check blocked content
+    if let Some(blocked_content) = &settings.spam_filter.blocked_content {
+        for phrase in blocked_content {
+            if event.content.contains(phrase) {
+                warn!("Blocked event with banned content: {}", phrase);
+                return Err("blocked: content banned".to_string());
+            }
+        }
+    }
+    
+    // Check deduplication
+    if let Some(cache) = dedup_cache {
+        if cache.check_and_add(&event.pubkey, &event.content) {
+            warn!("Blocked duplicate event from: {}", event.pubkey);
+            return Err("duplicate: message detected".to_string());
+        }
+    }
+
+    Ok(())
 }
 
 struct ClientInfo {
@@ -1278,15 +1263,23 @@ async fn nostr_server(
                         metrics.disconnects.with_label_values(&["send_error"]).inc();
                         break;
                     }
-                } else if allowed_to_send(&query_result.event, &conn, &settings, dedup_cache.as_ref()) {
-                    metrics.sent_events.with_label_values(&["db"]).inc();
-                    client_received_event_count += 1;
-                    // send a result
-                    let send_str = format!("[\"EVENT\",\"{}\",{}]", subesc, &query_result.event);
-                    if ws_stream.send(Message::Text(send_str)).await.is_err() {
-                        debug!("failed to send message, closing connection (cid: {})", cid);
-                        metrics.disconnects.with_label_values(&["send_error"]).inc();
-                        break;
+                } else {
+                    // deserialize check for NIP-42
+                    if let Ok(event) = serde_json::from_str::<Event>(&query_result.event) {
+                        if allowed_to_send(&event, &conn, &settings) {
+                             // We don't run spam check on OUTGOING events for now
+                            metrics.sent_events.with_label_values(&["db"]).inc();
+                            client_received_event_count += 1;
+                            // send a result
+                            let send_str = format!("[\"EVENT\",\"{}\", {}]", subesc, &query_result.event);
+                            if ws_stream.send(Message::Text(send_str)).await.is_err() {
+                                debug!("failed to send message, closing connection (cid: {})", cid);
+                                metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                break;
+                            }
+                        }
+                    }
+                }
                     }
                 }
             },
@@ -1302,7 +1295,7 @@ async fn nostr_server(
                     // TODO: serialize at broadcast time, instead of
                     // once for each consumer.
                     if let Ok(event_str) = serde_json::to_string(&global_event) {
-                        if allowed_to_send(&event_str, &conn, &settings, dedup_cache.as_ref()) {
+                        if allowed_to_send(&global_event, &conn, &settings) {
                             // create an event response and send it
                             trace!("sub match for client: {}, sub: {:?}, event: {:?}",
                                cid, s,
@@ -1330,13 +1323,7 @@ async fn nostr_server(
                 // Consume text messages from the client, parse into Nostr messages.
                 let nostr_msg = match ws_next {
                     Some(Ok(Message::Text(m))) => {
-                        // check if allowed
-                        if allowed_to_send(&m, &conn, &settings, dedup_cache.as_ref()) {
-                            convert_to_msg(&m,settings.limits.max_event_bytes)
-                        } else {
-                            // If not allowed, treat as a protocol parse error to drop the message
-                            Err(Error::ProtoParseError)
-                        }
+                        convert_to_msg(&m,settings.limits.max_event_bytes)
                     },
                     Some(Ok(Message::Binary(_))) => {
 
@@ -1394,6 +1381,17 @@ async fn nostr_server(
                         let parsed : Result<EventWrapper> = Result::<EventWrapper>::from(ec);
                         match parsed {
                             Ok(WrappedEvent(e)) => {
+                                // Validate Spam
+                                if let Err(msg) = check_spam(&e, &settings, dedup_cache.as_ref()) {
+                                    info!("Rejected spam event: {}", msg);
+                                    let notice = Notice::blocked(e.id.clone(), &msg);
+                                    ws_stream.send(make_notice_message(&notice)).await.ok();
+                                    // Also send OK false
+                                    let ok_msg = json!(["OK", e.id, false, msg]);
+                                    ws_stream.send(Message::Text(ok_msg.to_string())).await.ok();
+                                    continue;
+                                }
+
                                 metrics.cmd_event.inc();
                                 let id_prefix:String = e.id.chars().take(8).collect();
                                 debug!("successfully parsed/validated event: {:?} (cid: {}, kind: {})", id_prefix, cid, e.kind);
