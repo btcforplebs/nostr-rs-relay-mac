@@ -56,6 +56,7 @@ use tokio::sync::broadcast::{self, Receiver, Sender};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio_tungstenite::WebSocketStream;
+use crate::dedup::DedupCache;
 use tracing::{debug, error, info, trace, warn};
 use tungstenite::error::CapacityError::MessageTooLong;
 use tungstenite::error::Error as WsError;
@@ -77,6 +78,7 @@ async fn handle_web_request(
     favicon: Option<Vec<u8>>,
     registry: Registry,
     metrics: NostrMetrics,
+    dedup_cache: Option<Arc<DedupCache>>,
 ) -> Result<Response<Body>, Infallible> {
     match (
         request.uri().path(),
@@ -139,6 +141,7 @@ async fn handle_web_request(
                                     event_tx,
                                     shutdown,
                                     metrics,
+                                    dedup_cache,
                                 ));
                             }
                             // todo: trace, don't print...
@@ -962,45 +965,54 @@ pub fn start_server(settings: &Settings, shutdown_rx: MpscReceiver<()>) -> Resul
             file_bytes(x).ok()
         });
 
-        // A `Service` is needed for every connection, so this
-        // creates one from our `handle_request` function.
-        let make_svc = make_service_fn(|conn: &AddrStream| {
-            let repo = repo.clone();
-            let remote_addr = conn.remote_addr();
-            let bcast = bcast_tx.clone();
-            let event = event_tx.clone();
-            let payment_tx = payment_tx.clone();
-            let stop = invoke_shutdown.clone();
-            let settings = settings.clone();
-            let favicon = favicon.clone();
-            let registry = registry.clone();
-            let metrics = metrics.clone();
-            async move {
-                // service_fn converts our function into a `Service`
-                Ok::<_, Infallible>(service_fn(move |request: Request<Body>| {
-                    handle_web_request(
-                        request,
-                        repo.clone(),
-                        settings.clone(),
-                        remote_addr,
-                        bcast.clone(),
-                        event.clone(),
-                        payment_tx.clone(),
-                        stop.subscribe(),
-                        favicon.clone(),
-                        registry.clone(),
-                        metrics.clone(),
-                    )
-                }))
+        let dedup_cache = if settings.spam_filter.deduplication.as_ref().map_or(false, |d| d.enabled) {
+            let window = settings.spam_filter.deduplication.as_ref().map_or(900, |d| d.window_seconds);
+            info!("Deduplication enabled with window: {} seconds", window);
+            Some(Arc::new(DedupCache::new(Duration::from_secs(window))))
+        } else {
+            None
+        };
+
+        // spawn the server on a new thread
+        let server_thread = tokio::spawn(async move {
+            let server = Server::bind(&socket_addr).serve(make_service_fn(|conn: &AddrStream| {
+                let repo = repo.clone();
+                let event_tx = event_tx.clone();
+                let payment_tx = payment_tx.clone();
+                let shutdown_broadcast = invoke_shutdown.clone(); // Renamed to avoid conflict with `shutdown_listen`
+                let settings = settings.clone();
+                let remote_addr = conn.remote_addr();
+                let broadcast = bcast_tx.clone();
+                let favicon = favicon.clone();
+                let registry = registry.clone();
+                let metrics = metrics.clone();
+                let dedup_cache = dedup_cache.clone();
+                async move {
+                    Ok::<_, Infallible>(service_fn(move |req| {
+                        handle_web_request(
+                            req,
+                            repo.clone(),
+                            settings.clone(),
+                            remote_addr,
+                            broadcast.clone(),
+                            event_tx.clone(),
+                            payment_tx.clone(),
+                            shutdown_broadcast.subscribe(), // Use subscribe() for Receiver
+                            favicon.clone(),
+                            registry.clone(),
+                            metrics.clone(),
+                            dedup_cache.clone(),
+                        )
+                    }))
+                }
+            }))
+            .with_graceful_shutdown(ctrl_c_or_signal(webserver_shutdown_listen));
+            if let Err(e) = server.await {
+                eprintln!("server error: {}", e);
             }
         });
-        let server = Server::bind(&socket_addr)
-            .serve(make_svc)
-            .with_graceful_shutdown(ctrl_c_or_signal(webserver_shutdown_listen));
-        // run hyper in this thread.  This is why the thread does not return.
-        if let Err(e) = server.await {
-            eprintln!("server error: {e}");
-        }
+        // Await the server thread to keep the runtime alive until it finishes
+        server_thread.await.unwrap();
     });
     Ok(())
 }
@@ -1056,7 +1068,60 @@ fn make_notice_message(notice: &Notice) -> Message {
     Message::text(json.to_string())
 }
 
-fn allowed_to_send(event_str: &str, conn: &conn::ClientConn, settings: &Settings) -> bool {
+fn allowed_to_send(event_str: &str, conn: &conn::ClientConn, settings: &Settings, dedup_cache: Option<&Arc<DedupCache>>) -> bool {
+    // Check spam filter first
+    if settings.spam_filter.enabled {
+        match serde_json::from_str::<Event>(event_str) {
+            Ok(event) => {
+                // Check blocked pubkeys
+                if let Some(blocked_pubkeys) = &settings.spam_filter.blocked_pubkeys {
+                    if blocked_pubkeys.contains(&event.pubkey) {
+                         // Check if whitelisted
+                        if let Some(whitelist) = &settings.spam_filter.whitelist {
+                            if whitelist.contains(&event.pubkey) {
+                                // proceed to next checks
+                            } else {
+                                warn!("Blocked event from banned pubkey: {}", event.pubkey);
+                                return false;
+                            }
+                        } else {
+                            warn!("Blocked event from banned pubkey: {}", event.pubkey);
+                            return false;
+                        }
+                    }
+                }
+
+                // Check blocked content
+                if let Some(blocked_content) = &settings.spam_filter.blocked_content {
+                    for phrase in blocked_content {
+                        if event.content.contains(phrase) {
+                            warn!("Blocked event with banned content: {}", phrase);
+                            return false;
+                        }
+                    }
+                }
+                
+                // Check deduplication
+                if let Some(cache) = dedup_cache {
+                    // Only dedicate Kind 1 (Text Note) for now, or all events? 
+                    // User asked for "spamming the relay with the same message status", implied text.
+                    // But blocking duplicates universally is safer for spam.
+                    if cache.check_and_add(&event.pubkey, &event.content) {
+                        warn!("Blocked duplicate event from: {}", event.pubkey);
+                        return false;
+                    }
+                }
+                
+                // Re-serialize check not strictly needed since we have the object but legacy function signature takes str
+                // We'll fall through to existing logic
+            }
+            Err(_) => {
+                // If we can't parse it to check spam, maybe we should block it? 
+                // But let the existing logic handle malformed json if any.
+            }
+        }
+    }
+
     // TODO: pass in kind so that we can avoid deserialization for most events
     if settings.authorization.nip42_dms {
         match serde_json::from_str::<Event>(event_str) {
@@ -1097,6 +1162,7 @@ async fn nostr_server(
     event_tx: mpsc::Sender<SubmittedEvent>,
     mut shutdown: Receiver<()>,
     metrics: NostrMetrics,
+    dedup_cache: Option<Arc<DedupCache>>,
 ) {
     // the time this websocket nostr server started
     let orig_start = Instant::now();
@@ -1212,7 +1278,7 @@ async fn nostr_server(
                         metrics.disconnects.with_label_values(&["send_error"]).inc();
                         break;
                     }
-                } else if allowed_to_send(&query_result.event, &conn, &settings) {
+                } else if allowed_to_send(&query_result.event, &conn, &settings, dedup_cache.as_ref()) {
                     metrics.sent_events.with_label_values(&["db"]).inc();
                     client_received_event_count += 1;
                     // send a result
@@ -1236,7 +1302,7 @@ async fn nostr_server(
                     // TODO: serialize at broadcast time, instead of
                     // once for each consumer.
                     if let Ok(event_str) = serde_json::to_string(&global_event) {
-                        if allowed_to_send(&event_str, &conn, &settings) {
+                        if allowed_to_send(&event_str, &conn, &settings, dedup_cache.as_ref()) {
                             // create an event response and send it
                             trace!("sub match for client: {}, sub: {:?}, event: {:?}",
                                cid, s,
@@ -1264,7 +1330,13 @@ async fn nostr_server(
                 // Consume text messages from the client, parse into Nostr messages.
                 let nostr_msg = match ws_next {
                     Some(Ok(Message::Text(m))) => {
-                        convert_to_msg(&m,settings.limits.max_event_bytes)
+                        // check if allowed
+                        if allowed_to_send(&m, &conn, &settings, dedup_cache.as_ref()) {
+                            convert_to_msg(&m,settings.limits.max_event_bytes)
+                        } else {
+                            // If not allowed, treat as a protocol parse error to drop the message
+                            Err(Error::ProtoParseError)
+                        }
                     },
                     Some(Ok(Message::Binary(_))) => {
 
