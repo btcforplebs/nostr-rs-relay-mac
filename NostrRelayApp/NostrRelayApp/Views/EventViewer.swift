@@ -55,7 +55,7 @@ struct EventViewer: View {
         }
         .onAppear {
             if !service.isConnected {
-                service.connect(port: configService.config.port)
+                service.connect(port: configService.config.port, config: configService.config)
             }
         }
     }
@@ -64,7 +64,7 @@ struct EventViewer: View {
         if service.isConnected {
             service.disconnect()
         } else {
-            service.connect(port: configService.config.port)
+            service.connect(port: configService.config.port, config: configService.config)
         }
     }
     

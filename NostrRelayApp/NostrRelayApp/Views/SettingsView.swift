@@ -55,6 +55,16 @@ struct BasicSettingsView: View {
             
             Section("Security") {
                 Toggle("Enable Spam Filter", isOn: $configService.config.spamFilterEnabled)
+                if configService.config.spamFilterEnabled {
+                    TextField("Blocked Pubkeys (comma separated)", text: Binding(
+                        get: { configService.config.blockedPubkeys.joined(separator: ", ") },
+                        set: { configService.config.blockedPubkeys = $0.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+                    ))
+                    TextField("Blocked Keywords (comma separated)", text: Binding(
+                        get: { configService.config.blockedKeywords.joined(separator: ", ") },
+                        set: { configService.config.blockedKeywords = $0.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+                    ))
+                }
             }
             .disabled(configService.config.appSpecific.useManualConfig)
             

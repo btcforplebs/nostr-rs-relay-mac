@@ -20,6 +20,8 @@ struct RelayConfig: Codable, Equatable {
     
     // Security / Spam
     var spamFilterEnabled: Bool = false
+    var blockedPubkeys: [String] = []
+    var blockedKeywords: [String] = []
     
     var appSpecific: AppSpecific = AppSpecific()
     
@@ -139,6 +141,8 @@ class ConfigurationService: ObservableObject {
 
         [spam_filter]
         enabled = \(config.spamFilterEnabled)
+        blocked_pubkeys = [\(config.blockedPubkeys.map { "\"\($0)\"" }.joined(separator: ", "))]
+        blocked_keywords = [\(config.blockedKeywords.map { "\"\($0)\"" }.joined(separator: ", "))]
         """
     }
 }

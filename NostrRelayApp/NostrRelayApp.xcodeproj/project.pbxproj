@@ -13,6 +13,7 @@
 		AAAA0005 /* ConfigurationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0005 /* ConfigurationService.swift */; };
 		AAAA0006 /* RelayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0006 /* RelayService.swift */; };
 		AAAA0007 /* WebSocketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0007 /* WebSocketClient.swift */; };
+		AAAA0021 /* SpamFilterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0021 /* SpamFilterService.swift */; };
 		AAAA0008 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0008 /* DashboardView.swift */; };
 		AAAA0009 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0009 /* SettingsView.swift */; };
 		AAAA0014 /* LogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0014 /* LogsView.swift */; };
@@ -30,6 +31,7 @@
 		FFFF0005 /* ConfigurationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationService.swift; sourceTree = "<group>"; };
 		FFFF0006 /* RelayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayService.swift; sourceTree = "<group>"; };
 		FFFF0007 /* WebSocketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketClient.swift; sourceTree = "<group>"; };
+		FFFF0021 /* SpamFilterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpamFilterService.swift; sourceTree = "<group>"; };
 		FFFF0008 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		FFFF0009 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		FFFF0014 /* LogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsView.swift; sourceTree = "<group>"; };
@@ -37,7 +39,7 @@
 		FFFF0016 /* nostr-rs-relay */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = nostr-rs-relay; sourceTree = "<group>"; };
 		FFFF0017 /* templates */ = {isa = PBXFileReference; lastKnownFileType = folder; path = templates; sourceTree = "<group>"; };
 		FFFF0018 /* ColorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
-		FFFF0020 /* NostrRelayApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NostrRelayApp.entitlements; sourceTree = "<group>"; };
+		FFFF0020 /* NostrRelayApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = NostrRelayApp.entitlements; path = App/NostrRelayApp.entitlements; sourceTree = "<group>"; };
 		FFFF0099 /* NostrRelayApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NostrRelayApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FFFF0025 /* EventViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventViewer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -79,6 +81,7 @@
 				FFFF0005 /* ConfigurationService.swift */,
 				FFFF0006 /* RelayService.swift */,
 				FFFF0007 /* WebSocketClient.swift */,
+				FFFF0021 /* SpamFilterService.swift */,
 			);
 			path = NostrRelayApp/Services;
 			sourceTree = "<group>";
@@ -189,6 +192,7 @@
 				AAAA0005 /* ConfigurationService.swift in Sources */,
 				AAAA0006 /* RelayService.swift in Sources */,
 				AAAA0007 /* WebSocketClient.swift in Sources */,
+				AAAA0021 /* SpamFilterService.swift in Sources */,
 				AAAA0008 /* DashboardView.swift in Sources */,
 				AAAA0009 /* SettingsView.swift in Sources */,
 				AAAA0014 /* LogsView.swift in Sources */,
