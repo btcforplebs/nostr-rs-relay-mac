@@ -98,6 +98,19 @@ port = 8080
 # Websocket ping interval in seconds, defaults to 5 minutes
 #ping_interval = 300
 
+[spam_filter]
+enabled = true
+blocked_content = ["Block [0-9]+", "#bitcoinfees", "#NSFW", "#porn", "#sex"]
+blocked_pubkeys = [
+    "f03df3d4134230420cdf7acbb35f96a2542424246ab052ba24c6fec6a4d4f676",
+    "e7bf8dad360828f0289b7b4bea1a1bd28eb6d4d6522fa17f957e0dfb839ef3db",
+    "b57d921e26f0f2f7e46b9c2dc8b56145951d13c66e75f210a5bb535918f34db5"
+]
+
+[spam_filter.deduplication]
+enabled = true
+window_seconds = 900 # 15 minutes
+
 [options]
 # Reject events that have timestamps greater than this many seconds in
 # the future.  Recommended to reject anything greater than 30 minutes

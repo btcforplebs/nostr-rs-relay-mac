@@ -179,6 +179,23 @@ pub struct Logging {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(unused)]
+pub struct DedupSettings {
+    pub enabled: bool,
+    pub window_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(unused)]
+pub struct SpamFilter {
+    pub enabled: bool,
+    pub blocked_content: Option<Vec<String>>,
+    pub blocked_pubkeys: Option<Vec<String>>,
+    pub whitelist: Option<Vec<String>>,
+    pub deduplication: Option<DedupSettings>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(unused)]
 pub struct Settings {
     pub info: Info,
     pub diagnostics: Diagnostics,
@@ -192,6 +209,7 @@ pub struct Settings {
     pub retention: Retention,
     pub options: Options,
     pub logging: Logging,
+    pub spam_filter: SpamFilter,
 }
 
 impl Settings {
@@ -362,6 +380,13 @@ impl Default for Settings {
             logging: Logging {
                 folder_path: None,
                 file_prefix: None,
+            },
+            spam_filter: SpamFilter {
+                enabled: false,
+                blocked_content: None,
+                blocked_pubkeys: None,
+                whitelist: None,
+                deduplication: None,
             },
         }
     }
