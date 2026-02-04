@@ -57,7 +57,7 @@ struct DashboardView: View {
             .onChange(of: relayService.isServerReady) { _, isReady in
                 if isReady {
                     print("✅ Server confirms READY. Connecting viewer...")
-                    eventService.connect(port: configService.config.port)
+                    eventService.connect(port: configService.config.port, config: configService.config)
                 } else {
                     eventService.disconnect()
                 }

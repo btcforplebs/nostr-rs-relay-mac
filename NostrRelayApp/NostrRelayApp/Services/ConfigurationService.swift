@@ -15,7 +15,13 @@ struct RelayConfig: Codable, Equatable {
     
     // Limits
     var maxEventSize: Int = 131072 // 128KB
-    var maxMessageSize: Int = 131072 // 128KB
+    var maxWSMessageBytes: Int = 131072 // 128KB
+    var maxWSFrameBytes: Int = 131072 // 128KB
+    
+    // Security / Spam
+    var spamFilterEnabled: Bool = false
+    var blockedPubkeys: [String] = []
+    var blockedKeywords: [String] = []
     
     var appSpecific: AppSpecific = AppSpecific()
     
@@ -123,8 +129,8 @@ class ConfigurationService: ObservableObject {
 
         [limits]
         max_event_bytes = \(config.maxEventSize)
-        max_ws_message_bytes = \(config.maxMessageSize)
-        max_ws_frame_bytes = \(config.maxMessageSize)
+        max_ws_message_bytes = \(config.maxWSMessageBytes)
+        max_ws_frame_bytes = \(config.maxWSFrameBytes)
 
         [logging]
         # We don't set a folder path here because we capture stdout/stderr directly from the process
@@ -132,6 +138,11 @@ class ConfigurationService: ObservableObject {
         
         [options]
         reject_future_seconds = 1800
+
+        [spam_filter]
+        enabled = \(config.spamFilterEnabled)
+        blocked_pubkeys = [\(config.blockedPubkeys.map { "\"\($0)\"" }.joined(separator: ", "))]
+        blocked_keywords = [\(config.blockedKeywords.map { "\"\($0)\"" }.joined(separator: ", "))]
         """
     }
 }

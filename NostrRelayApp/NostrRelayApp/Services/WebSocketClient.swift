@@ -57,7 +57,7 @@ class WebSocketClient: NSObject, ObservableObject, URLSessionWebSocketDelegate {
             guard !self.isIntentionalDisconnect else { return }
             
             switch result {
-            case .failure(_):
+            case .failure(let error):
                 // Don't spam console if we act on it later
                 // print("WebSocket receive failure: \(error.localizedDescription)")
                 DispatchQueue.main.async {
@@ -127,8 +127,10 @@ class EventViewerService: ObservableObject {
     private var client: WebSocketClient?
     private var cancellables = Set<AnyCancellable>()
     private let processingQueue = DispatchQueue(label: "com.nostrrelay.processing", qos: .userInitiated)
+    private var config: RelayConfig?
     
-    func connect(port: Int) {
+    func connect(port: Int, config: RelayConfig) {
+        self.config = config
         disconnect()
         
         // Connect to localhost on configured port
@@ -207,6 +209,12 @@ class EventViewerService: ObservableObject {
               let eventDict = json[2] as? [String: Any],
               let eventData = try? JSONSerialization.data(withJSONObject: eventDict),
               let event = try? JSONDecoder().decode(NostrEvent.self, from: eventData) else {
+            return
+        }
+        
+        // Apply client-side spam filtering
+        if let config = self.config, SpamFilterService.shouldFilter(event: event, config: config) {
+            // Event is filtered, don't show it in the viewer
             return
         }
         

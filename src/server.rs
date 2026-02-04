@@ -56,6 +56,7 @@ use tokio::sync::broadcast::{self, Receiver, Sender};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio_tungstenite::WebSocketStream;
+use crate::dedup::DedupCache;
 use tracing::{debug, error, info, trace, warn};
 use tungstenite::error::CapacityError::MessageTooLong;
 use tungstenite::error::Error as WsError;
@@ -77,6 +78,7 @@ async fn handle_web_request(
     favicon: Option<Vec<u8>>,
     registry: Registry,
     metrics: NostrMetrics,
+    dedup_cache: Option<Arc<DedupCache>>,
 ) -> Result<Response<Body>, Infallible> {
     match (
         request.uri().path(),
@@ -139,6 +141,7 @@ async fn handle_web_request(
                                     event_tx,
                                     shutdown,
                                     metrics,
+                                    dedup_cache,
                                 ));
                             }
                             // todo: trace, don't print...
@@ -962,45 +965,54 @@ pub fn start_server(settings: &Settings, shutdown_rx: MpscReceiver<()>) -> Resul
             file_bytes(x).ok()
         });
 
-        // A `Service` is needed for every connection, so this
-        // creates one from our `handle_request` function.
-        let make_svc = make_service_fn(|conn: &AddrStream| {
-            let repo = repo.clone();
-            let remote_addr = conn.remote_addr();
-            let bcast = bcast_tx.clone();
-            let event = event_tx.clone();
-            let payment_tx = payment_tx.clone();
-            let stop = invoke_shutdown.clone();
-            let settings = settings.clone();
-            let favicon = favicon.clone();
-            let registry = registry.clone();
-            let metrics = metrics.clone();
-            async move {
-                // service_fn converts our function into a `Service`
-                Ok::<_, Infallible>(service_fn(move |request: Request<Body>| {
-                    handle_web_request(
-                        request,
-                        repo.clone(),
-                        settings.clone(),
-                        remote_addr,
-                        bcast.clone(),
-                        event.clone(),
-                        payment_tx.clone(),
-                        stop.subscribe(),
-                        favicon.clone(),
-                        registry.clone(),
-                        metrics.clone(),
-                    )
-                }))
+        let dedup_cache = if settings.spam_filter.deduplication.as_ref().map_or(false, |d| d.enabled) {
+            let window = settings.spam_filter.deduplication.as_ref().map_or(900, |d| d.window_seconds);
+            info!("Deduplication enabled with window: {} seconds", window);
+            Some(Arc::new(DedupCache::new(Duration::from_secs(window))))
+        } else {
+            None
+        };
+
+        // spawn the server on a new thread
+        let server_thread = tokio::spawn(async move {
+            let server = Server::bind(&socket_addr).serve(make_service_fn(|conn: &AddrStream| {
+                let repo = repo.clone();
+                let event_tx = event_tx.clone();
+                let payment_tx = payment_tx.clone();
+                let shutdown_broadcast = invoke_shutdown.clone(); // Renamed to avoid conflict with `shutdown_listen`
+                let settings = settings.clone();
+                let remote_addr = conn.remote_addr();
+                let broadcast = bcast_tx.clone();
+                let favicon = favicon.clone();
+                let registry = registry.clone();
+                let metrics = metrics.clone();
+                let dedup_cache = dedup_cache.clone();
+                async move {
+                    Ok::<_, Infallible>(service_fn(move |req| {
+                        handle_web_request(
+                            req,
+                            repo.clone(),
+                            settings.clone(),
+                            remote_addr,
+                            broadcast.clone(),
+                            event_tx.clone(),
+                            payment_tx.clone(),
+                            shutdown_broadcast.subscribe(), // Use subscribe() for Receiver
+                            favicon.clone(),
+                            registry.clone(),
+                            metrics.clone(),
+                            dedup_cache.clone(),
+                        )
+                    }))
+                }
+            }))
+            .with_graceful_shutdown(ctrl_c_or_signal(webserver_shutdown_listen));
+            if let Err(e) = server.await {
+                eprintln!("server error: {}", e);
             }
         });
-        let server = Server::bind(&socket_addr)
-            .serve(make_svc)
-            .with_graceful_shutdown(ctrl_c_or_signal(webserver_shutdown_listen));
-        // run hyper in this thread.  This is why the thread does not return.
-        if let Err(e) = server.await {
-            eprintln!("server error: {e}");
-        }
+        // Await the server thread to keep the runtime alive until it finishes
+        server_thread.await.unwrap();
     });
     Ok(())
 }
@@ -1056,27 +1068,65 @@ fn make_notice_message(notice: &Notice) -> Message {
     Message::text(json.to_string())
 }
 
-fn allowed_to_send(event_str: &str, conn: &conn::ClientConn, settings: &Settings) -> bool {
-    // TODO: pass in kind so that we can avoid deserialization for most events
+// Check if an event is allowed to be sent (NIP-42 DMS)
+fn allowed_to_send(event: &Event, conn: &conn::ClientConn, settings: &Settings) -> bool {
     if settings.authorization.nip42_dms {
-        match serde_json::from_str::<Event>(event_str) {
-            Ok(event) => {
-                if event.kind == 4 || event.kind == 44 || event.kind == 1059 {
-                    match (conn.auth_pubkey(), event.tag_values_by_name("p").first()) {
-                        (Some(auth_pubkey), Some(recipient_pubkey)) => {
-                            recipient_pubkey == auth_pubkey || &event.pubkey == auth_pubkey
-                        }
-                        (_, _) => false,
-                    }
-                } else {
-                    true
+        if event.kind == 4 || event.kind == 44 || event.kind == 1059 {
+            match (conn.auth_pubkey(), event.tag_values_by_name("p").first()) {
+                (Some(auth_pubkey), Some(recipient_pubkey)) => {
+                    recipient_pubkey == auth_pubkey || &event.pubkey == auth_pubkey
                 }
+                (_, _) => false,
             }
-            Err(_) => false,
+        } else {
+            true
         }
     } else {
         true
     }
+}
+
+fn check_spam(event: &Event, settings: &Settings, dedup_cache: Option<&Arc<DedupCache>>) -> Result<(), String> {
+    if !settings.spam_filter.enabled {
+        return Ok(());
+    }
+
+    // Check blocked pubkeys
+    if let Some(blocked_pubkeys) = &settings.spam_filter.blocked_pubkeys {
+        if blocked_pubkeys.contains(&event.pubkey) {
+             // Check if whitelisted
+            let whitelisted = if let Some(whitelist) = &settings.spam_filter.whitelist {
+                whitelist.contains(&event.pubkey)
+            } else {
+                false
+            };
+            
+            if !whitelisted {
+                warn!("Blocked event from banned pubkey: {}", event.pubkey);
+                return Err("blocked: pubkey banned".to_string());
+            }
+        }
+    }
+
+    // Check blocked content
+    if let Some(blocked_content) = &settings.spam_filter.blocked_content {
+        for phrase in blocked_content {
+            if event.content.contains(phrase) {
+                warn!("Blocked event with banned content: {}", phrase);
+                return Err("blocked: content banned".to_string());
+            }
+        }
+    }
+    
+    // Check deduplication
+    if let Some(cache) = dedup_cache {
+        if cache.check_and_add(&event.pubkey, &event.content) {
+            warn!("Blocked duplicate event from: {}", event.pubkey);
+            return Err("duplicate: message detected".to_string());
+        }
+    }
+
+    Ok(())
 }
 
 struct ClientInfo {
@@ -1097,6 +1147,7 @@ async fn nostr_server(
     event_tx: mpsc::Sender<SubmittedEvent>,
     mut shutdown: Receiver<()>,
     metrics: NostrMetrics,
+    dedup_cache: Option<Arc<DedupCache>>,
 ) {
     // the time this websocket nostr server started
     let orig_start = Instant::now();
@@ -1175,7 +1226,7 @@ async fn nostr_server(
     loop {
         tokio::select! {
             _ = shutdown.recv() => {
-        metrics.disconnects.with_label_values(&["shutdown"]).inc();
+                metrics.disconnects.with_label_values(&["shutdown"]).inc();
                 info!("Close connection down due to shutdown, client: {}, ip: {:?}, connected: {:?}", cid, conn.ip(), orig_start.elapsed());
                 // server shutting down, exit loop
                 break;
@@ -1185,31 +1236,56 @@ async fn nostr_server(
                 // if it has been too long, disconnect
                 if last_message_time.elapsed() > max_quiet_time {
                     debug!("ending connection due to lack of client ping response");
-            metrics.disconnects.with_label_values(&["timeout"]).inc();
+                    metrics.disconnects.with_label_values(&["timeout"]).inc();
                     break;
                 }
                 // Send a ping
-                ws_stream.send(Message::Ping(Vec::new())).await.ok();
+                if ws_stream.send(Message::Ping(Vec::new())).await.is_err() {
+                    debug!("failed to send ping, closing connection (cid: {})", cid);
+                    metrics.disconnects.with_label_values(&["send_error"]).inc();
+                    break;
+                }
             },
             Some(notice_msg) = notice_rx.recv() => {
-                ws_stream.send(make_notice_message(&notice_msg)).await.ok();
+                if ws_stream.send(make_notice_message(&notice_msg)).await.is_err() {
+                    debug!("failed to send ping, closing connection (cid: {})", cid);
+                    metrics.disconnects.with_label_values(&["send_error"]).inc();
+                    break;
+                }
             },
             Some(query_result) = query_rx.recv() => {
                 // database informed us of a query result we asked for
                 let subesc = query_result.sub_id.replace('"', "");
                 if query_result.event == "EOSE" {
                     let send_str = format!("[\"EOSE\",\"{subesc}\"]");
-                    ws_stream.send(Message::Text(send_str)).await.ok();
-                } else if allowed_to_send(&query_result.event, &conn, &settings) {
-                    metrics.sent_events.with_label_values(&["db"]).inc();
-                    client_received_event_count += 1;
-                    // send a result
-                    let send_str = format!("[\"EVENT\",\"{}\",{}]", subesc, &query_result.event);
-                    ws_stream.send(Message::Text(send_str)).await.ok();
+                    if ws_stream.send(Message::Text(send_str)).await.is_err() {
+                        debug!("failed to send message, closing connection (cid: {})", cid);
+                        metrics.disconnects.with_label_values(&["send_error"]).inc();
+                        break;
+                    }
+                } else {
+                    // deserialize check for NIP-42
+                    if let Ok(event) = serde_json::from_str::<Event>(&query_result.event) {
+                        if allowed_to_send(&event, &conn, &settings) {
+                             // We don't run spam check on OUTGOING events for now
+                            metrics.sent_events.with_label_values(&["db"]).inc();
+                            client_received_event_count += 1;
+                            // send a result
+                            let send_str = format!("[\"EVENT\",\"{}\", {}]", subesc, &query_result.event);
+                            if ws_stream.send(Message::Text(send_str)).await.is_err() {
+                                debug!("failed to send message, closing connection (cid: {})", cid);
+                                metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                break;
+                            }
+                        }
+                    }
+                }
+                    }
                 }
             },
             // TODO: consider logging the LaggedRecv error
             Ok(global_event) = bcast_rx.recv() => {
+                let mut should_disconnect = false;
                 // an event has been broadcast to all clients
                 // first check if there is a subscription for this event.
                 for (s, sub) in conn.subscriptions() {
@@ -1219,18 +1295,26 @@ async fn nostr_server(
                     // TODO: serialize at broadcast time, instead of
                     // once for each consumer.
                     if let Ok(event_str) = serde_json::to_string(&global_event) {
-                        if allowed_to_send(&event_str, &conn, &settings) {
+                        if allowed_to_send(&global_event, &conn, &settings) {
                             // create an event response and send it
                             trace!("sub match for client: {}, sub: {:?}, event: {:?}",
                                cid, s,
                                global_event.get_event_id_prefix());
                             let subesc = s.replace('"', "");
                             metrics.sent_events.with_label_values(&["realtime"]).inc();
-                            ws_stream.send(Message::Text(format!("[\"EVENT\",\"{subesc}\",{event_str}]"))).await.ok();
+                            if ws_stream.send(Message::Text(format!("[\"EVENT\",\"{subesc}\",{event_str}]"))).await.is_err() {
+                                debug!("failed to send message, closing connection (cid: {})", cid);
+                                metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                should_disconnect = true;
+                                break;
+                            }
                         }
                     } else {
                         warn!("could not serialize event: {:?}", global_event.get_event_id_prefix());
                     }
+                }
+                if should_disconnect {
+                    break;
                 }
             },
             ws_next = ws_stream.next() => {
@@ -1242,8 +1326,13 @@ async fn nostr_server(
                         convert_to_msg(&m,settings.limits.max_event_bytes)
                     },
                     Some(Ok(Message::Binary(_))) => {
-                        ws_stream.send(
-                            make_notice_message(&Notice::message("binary messages are not accepted".into()))).await.ok();
+
+                        if ws_stream.send(
+                            make_notice_message(&Notice::message("binary messages are not accepted".into()))).await.is_err() {
+                            debug!("failed to send notice, closing connection (cid: {})", cid);
+                            metrics.disconnects.with_label_values(&["send_error"]).inc();
+                            break;
+                        }
                         continue;
                     },
                     Some(Ok(Message::Ping(_) | Message::Pong(_))) => {
@@ -1252,8 +1341,12 @@ async fn nostr_server(
                         continue;
                     },
                     Some(Err(WsError::Capacity(MessageTooLong{size, max_size}))) => {
-                        ws_stream.send(
-                            make_notice_message(&Notice::message(format!("message too large ({size} > {max_size})")))).await.ok();
+                        if ws_stream.send(
+                            make_notice_message(&Notice::message(format!("message too large ({size} > {max_size})")))).await.is_err() {
+                            debug!("failed to send notice, closing connection (cid: {})", cid);
+                            metrics.disconnects.with_label_values(&["send_error"]).inc();
+                            break;
+                        }
                         continue;
                     },
                     None |
@@ -1262,21 +1355,19 @@ async fn nostr_server(
                              WsError::Protocol(tungstenite::error::ProtocolError::ResetWithoutClosingHandshake)))
                         => {
                             debug!("websocket close from client (cid: {}, ip: {:?})",cid, conn.ip());
-                metrics.disconnects.with_label_values(&["normal"]).inc();
+                            metrics.disconnects.with_label_values(&["normal"]).inc();
                             break;
                         },
                     Some(Err(WsError::Io(e))) => {
                         // IO errors are considered fatal
                         warn!("IO error (cid: {}, ip: {:?}): {:?}", cid, conn.ip(), e);
-            metrics.disconnects.with_label_values(&["error"]).inc();
-
+                        metrics.disconnects.with_label_values(&["error"]).inc();
                         break;
                     }
                     x => {
                         // default condition on error is to close the client connection
                         info!("unknown error (cid: {}, ip: {:?}): {:?} (closing conn)", cid, conn.ip(), x);
-            metrics.disconnects.with_label_values(&["error"]).inc();
-
+                        metrics.disconnects.with_label_values(&["error"]).inc();
                         break;
                     }
                 };
@@ -1290,13 +1381,28 @@ async fn nostr_server(
                         let parsed : Result<EventWrapper> = Result::<EventWrapper>::from(ec);
                         match parsed {
                             Ok(WrappedEvent(e)) => {
+                                // Validate Spam
+                                if let Err(msg) = check_spam(&e, &settings, dedup_cache.as_ref()) {
+                                    info!("Rejected spam event: {}", msg);
+                                    let notice = Notice::blocked(e.id.clone(), &msg);
+                                    ws_stream.send(make_notice_message(&notice)).await.ok();
+                                    // Also send OK false
+                                    let ok_msg = json!(["OK", e.id, false, msg]);
+                                    ws_stream.send(Message::Text(ok_msg.to_string())).await.ok();
+                                    continue;
+                                }
+
                                 metrics.cmd_event.inc();
                                 let id_prefix:String = e.id.chars().take(8).collect();
                                 debug!("successfully parsed/validated event: {:?} (cid: {}, kind: {})", id_prefix, cid, e.kind);
                                 // check if event is expired
                                 if e.is_expired() {
                                     let notice = Notice::invalid(e.id, "The event has already expired");
-                                    ws_stream.send(make_notice_message(&notice)).await.ok();
+                                    if ws_stream.send(make_notice_message(&notice)).await.is_err() {
+                                        debug!("failed to send notice, closing connection (cid: {})", cid);
+                                        metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                        break;
+                                    }
                                     // check if the event is too far in the future.
                                 } else if e.is_valid_timestamp(settings.options.reject_future_seconds) {
                                     // Write this to the database.
@@ -1315,7 +1421,12 @@ async fn nostr_server(
                                     if let Some(fut_sec) = settings.options.reject_future_seconds {
                                         let msg = format!("The event created_at field is out of the acceptable range (+{fut_sec}sec) for this relay.");
                                         let notice = Notice::invalid(e.id, &msg);
-                                        ws_stream.send(make_notice_message(&notice)).await.ok();
+                                        if ws_stream.send(make_notice_message(&notice)).await.is_err() {
+                                            debug!("failed to send notice, closing connection (cid: {})", cid);
+                                            metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                            break;
+
+                                        }
                                     }
                                 }
                             },
@@ -1337,11 +1448,19 @@ async fn nostr_server(
                                                     };
                                                     info!("client is authenticated: (cid: {}, pubkey: {:?})", cid, pubkey);
                                                     // Send OK message to confirm successful authentication (NIP-42)
-                                                    ws_stream.send(make_notice_message(&Notice::saved(event.id))).await.ok();
+                                                    if ws_stream.send(make_notice_message(&Notice::saved(event.id))).await.is_err() {
+                                                        debug!("failed to send notice, closing connection (cid: {})", cid);
+                                                        metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                                        break;
+                                                    }
                                                 },
                                                 Err(e) => {
                                                     info!("authentication error: {} (cid: {})", e, cid);
-                                                    ws_stream.send(make_notice_message(&Notice::restricted(event.id, format!("authentication error: {e}").as_str()))).await.ok();
+                                                    if ws_stream.send(make_notice_message(&Notice::restricted(event.id, format!("authentication error: {e}").as_str()))).await.is_err() {
+                                                        debug!("failed to send notice, closing connection (cid: {})", cid);
+                                                        metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                                        break;
+                                                    }
                                                 },
                                             }
                                         }
@@ -1349,13 +1468,21 @@ async fn nostr_server(
                                 } else {
                                     let e = CommandUnknownError;
                                     info!("client sent an invalid event (cid: {})", cid);
-                                    ws_stream.send(make_notice_message(&Notice::invalid(evid, &format!("{e}")))).await.ok();
+                                    if ws_stream.send(make_notice_message(&Notice::invalid(evid, &format!("{e}")))).await.is_err() {
+                                        debug!("failed to send notice, closing connection (cid: {})", cid);
+                                        metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                        break;
+                                    }
                                 }
                             },
                             Err(e) => {
                                 metrics.cmd_event.inc();
                                 info!("client sent an invalid event (cid: {})", cid);
-                                ws_stream.send(make_notice_message(&Notice::invalid(evid, &format!("{e}")))).await.ok();
+                                if ws_stream.send(make_notice_message(&Notice::invalid(evid, &format!("{e}")))).await.is_err() {
+                                    debug!("failed to send notice, closing connection (cid: {})", cid);
+                                    metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                    break;
+                                }
                             }
                         }
                     },
@@ -1376,7 +1503,11 @@ async fn nostr_server(
                             }
                             if settings.limits.limit_scrapers && s.is_scraper() {
                                 info!("subscription was scraper, ignoring (cid: {}, sub: {:?})", cid, s.id);
-                                ws_stream.send(Message::Text(format!("[\"EOSE\",\"{}\"]", s.id))).await.ok();
+                                if ws_stream.send(Message::Text(format!("[\"EOSE\",\"{}\"]", s.id))).await.is_err() {
+                                    debug!("failed to send message, closing connection (cid: {})", cid);
+                                    metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                    break;
+                                }
                                 continue
                             }
                             let (abandon_query_tx, abandon_query_rx) = oneshot::channel::<()>();
@@ -1393,7 +1524,12 @@ async fn nostr_server(
                                 },
                                 Err(e) => {
                                     info!("Subscription error: {} (cid: {}, sub: {:?})", e, cid, s.id);
-                                    ws_stream.send(make_notice_message(&Notice::message(format!("Subscription error: {e}")))).await.ok();
+                                    if ws_stream.send(make_notice_message(&Notice::message(format!("Subscription error: {e}")))).await.is_err() {
+                                        debug!("failed to send notice, closing connection (cid: {})", cid);
+                                        metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                        break;
+
+                                    }
                                 }
                             }
                         }
@@ -1414,7 +1550,11 @@ async fn nostr_server(
                             conn.unsubscribe(&c);
                         } else {
                             info!("invalid command ignored");
-                            ws_stream.send(make_notice_message(&Notice::message("could not parse command".into()))).await.ok();
+                            if ws_stream.send(make_notice_message(&Notice::message("could not parse command".into()))).await.is_err() {
+                                debug!("failed to send notice, closing connection (cid: {})", cid);
+                                metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                break;
+                            }
                         }
                     },
                     Err(Error::ConnError) => {
@@ -1423,11 +1563,19 @@ async fn nostr_server(
                     }
                     Err(Error::EventMaxLengthError(s)) => {
                         info!("client sent command larger ({} bytes) than max size (cid: {})", s, cid);
-                        ws_stream.send(make_notice_message(&Notice::message("event exceeded max size".into()))).await.ok();
+                        if ws_stream.send(make_notice_message(&Notice::message("event exceeded max size".into()))).await.is_err() {
+                            debug!("failed to send notice, closing connection (cid: {})", cid);
+                            metrics.disconnects.with_label_values(&["send_error"]).inc();
+                            break;
+                        }
                     },
                     Err(Error::ProtoParseError) => {
                         info!("client sent command that could not be parsed (cid: {})", cid);
-                        ws_stream.send(make_notice_message(&Notice::message("could not parse command".into()))).await.ok();
+                        if ws_stream.send(make_notice_message(&Notice::message("could not parse command".into()))).await.is_err() {
+                            debug!("failed to send notice, closing connection (cid: {})", cid);
+                            metrics.disconnects.with_label_values(&["send_error"]).inc();
+                            break;
+                        }
                     },
                     Err(e) => {
                         info!("got non-fatal error from client (cid: {}, error: {:?}", cid, e);

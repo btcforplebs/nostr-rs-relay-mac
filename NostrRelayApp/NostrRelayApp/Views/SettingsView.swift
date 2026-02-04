@@ -48,7 +48,23 @@ struct BasicSettingsView: View {
             
             Section("Limits") {
                 TextField("Max Event Size (Bytes)", value: $configService.config.maxEventSize, formatter: NumberFormatter())
-                TextField("Max Message Size (Bytes)", value: $configService.config.maxMessageSize, formatter: NumberFormatter())
+                TextField("Max WS Message (Bytes)", value: $configService.config.maxWSMessageBytes, formatter: NumberFormatter())
+                TextField("Max WS Frame (Bytes)", value: $configService.config.maxWSFrameBytes, formatter: NumberFormatter())
+            }
+            .disabled(configService.config.appSpecific.useManualConfig)
+            
+            Section("Security") {
+                Toggle("Enable Spam Filter", isOn: $configService.config.spamFilterEnabled)
+                if configService.config.spamFilterEnabled {
+                    TextField("Blocked Pubkeys (comma separated)", text: Binding(
+                        get: { configService.config.blockedPubkeys.joined(separator: ", ") },
+                        set: { configService.config.blockedPubkeys = $0.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+                    ))
+                    TextField("Blocked Keywords (comma separated)", text: Binding(
+                        get: { configService.config.blockedKeywords.joined(separator: ", ") },
+                        set: { configService.config.blockedKeywords = $0.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+                    ))
+                }
             }
             .disabled(configService.config.appSpecific.useManualConfig)
             
@@ -86,7 +102,7 @@ struct AdvancedSettingsView: View {
         VStack(alignment: .leading) {
             Toggle("Enable Manual Configuration (Edit config.toml directly)", isOn: $configService.config.appSpecific.useManualConfig)
                 .padding(.bottom)
-                .onChange(of: configService.config.appSpecific.useManualConfig) { _, newValue in
+                .onChange(of: configService.config.appSpecific.useManualConfig) { newValue in
                     configService.save() // Save the toggle state
                     if !newValue {
                         // Reload from generated if we turn off manual mode
