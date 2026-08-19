@@ -39,7 +39,7 @@ async def run_test():
         
         # 1. Test Good Message
         pk = PrivateKey()
-        event = Event("Hello World Unique " + str(time.time()))
+        event = Event(pk.public_key.hex(), "Hello World Unique " + str(time.time()))
         pk.sign_event(event)
         await websocket.send(event.to_message())
         print("Sent good message.")
@@ -51,7 +51,7 @@ async def run_test():
              print("No immediate response (relay might not support NIP-20 or timeout)")
 
         # 2. Test Spam Content
-        event_spam = Event("This includes Block 935037 and #bitcoinfees")
+        event_spam = Event(pk.public_key.hex(), "This includes Block 935037 and #bitcoinfees")
         pk.sign_event(event_spam)
         await websocket.send(event_spam.to_message())
         print("Sent SPAM content message.")
@@ -66,7 +66,7 @@ async def run_test():
         content = f"Duplicate Me {time.time()}"
         
         # First send
-        ev1 = Event(content)
+        ev1 = Event(pk2.public_key.hex(), content)
         pk2.sign_event(ev1)
         await websocket.send(ev1.to_message())
         print("Sent Dedup Msg 1 (Should be OK)")
@@ -76,7 +76,7 @@ async def run_test():
         except: pass
 
         # Second send (Immediate duplicate)
-        ev2 = Event(content) # Exactly same content
+        ev2 = Event(pk2.public_key.hex(), content) # Exactly same content
         pk2.sign_event(ev2) # Same pubkey
         # Note: Event ID will be different if timestamp changed slightly or we reuse object?
         # Our server checks (pubkey, content). Event ID doesn't matter for this check.

@@ -33,3 +33,6 @@ DerivedData/
 
 # NostrRelayApp
 NostrRelayApp.app/
+
+# Relay run logs
+*.log
