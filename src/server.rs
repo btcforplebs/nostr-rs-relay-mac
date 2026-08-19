@@ -1280,8 +1280,6 @@ async fn nostr_server(
                         }
                     }
                 }
-                    }
-                }
             },
             // TODO: consider logging the LaggedRecv error
             Ok(global_event) = bcast_rx.recv() => {
