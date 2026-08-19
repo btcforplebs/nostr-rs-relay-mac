@@ -78,6 +78,7 @@ struct BasicSettingsView: View {
                     Button("Save Configuration") {
                         configService.save()
                     }
+                    SaveStatusView()
                 }
             }
             
@@ -90,6 +91,24 @@ struct BasicSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Reports the outcome of the last save so a failed write is visible rather than silent.
+struct SaveStatusView: View {
+    @EnvironmentObject var configService: ConfigurationService
+
+    var body: some View {
+        if let error = configService.lastError {
+            Label(error, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundColor(.red)
+        } else if let savedAt = configService.lastSavedAt {
+            Label("Saved at \(savedAt.formatted(date: .omitted, time: .standard))",
+                  systemImage: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
     }
 }
 
@@ -136,6 +155,9 @@ struct AdvancedSettingsView: View {
                 }
             }
             .padding(.top)
+
+            SaveStatusView()
+                .padding(.top, 4)
         }
         .padding()
     }
