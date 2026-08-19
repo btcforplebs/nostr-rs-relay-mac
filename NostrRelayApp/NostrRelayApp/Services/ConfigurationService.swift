@@ -147,8 +147,18 @@ class ConfigurationService: ObservableObject {
 
         // Materialise config.toml only when it is missing. Regenerating it on every
         // launch silently discarded hand-edited TOML.
+        //
+        // This writes the TOML directly rather than calling save(), on purpose:
+        // save() would also rewrite settings.json with the defaults we just fell
+        // back to — destroying a settings.json we failed to read — and would clear
+        // the load error before the user ever saw it. An unreadable settings.json
+        // now survives until the user explicitly saves over it.
         if !fileManager.fileExists(atPath: tomlFileURL.path) {
-            save()
+            do {
+                try generateTOML().write(to: tomlFileURL, atomically: true, encoding: .utf8)
+            } catch {
+                self.lastError = ConfigError.writeFailed(path: tomlFileURL.path, underlying: error).localizedDescription
+            }
         }
     }
 
