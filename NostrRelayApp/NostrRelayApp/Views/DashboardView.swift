@@ -128,7 +128,7 @@ struct DashboardView: View {
                          caption: "\(system.peers.uniquePeers) unique IP\(system.peers.uniquePeers == 1 ? "" : "s")",
                          tone: metrics.snapshot.activeConnections > 0 ? .good : .neutral,
                          systemImage: "personalhotspot")
-                StatTile(label: "Events Stored", value: Fmt.count(database.stats.eventCount),
+                StatTile(label: "Events Stored", value: eventsStoredDisplay,
                          caption: Fmt.bytes(database.stats.totalBytes),
                          systemImage: "tray.full")
                 StatTile(label: "Inbound", value: Fmt.rate(metrics.snapshot.cmdEventRate, unit: " ev/s"),
@@ -431,38 +431,59 @@ struct DashboardView: View {
 
     // MARK: - Database
 
+    /// Honest freshness: shows normal age while polling succeeds, flips to an
+    /// explicit stale marker when refreshes stop landing (view hidden, relay
+    /// wedged, queries timing out) instead of presenting old numbers as live.
+    private var databaseFreshness: String? {
+        guard let last = database.stats.lastLightRefresh else {
+            return database.stats.lightTimedOut ? "queries timing out" : nil
+        }
+        if tick.timeIntervalSince(last) > 45 {
+            return "stale · as of \(Fmt.time(last))"
+        }
+        return "updated \(Fmt.relative(last))"
+    }
+
+    private var deepScanButton: some View {
+        Button {
+            database.runDeepScan(dataDirectory: configService.getDataDirectory())
+        } label: {
+            if database.isDeepScanning {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: "arrow.clockwise").font(.caption)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(database.isDeepScanning)
+        .help("Run the deep scan (full-table stats — may take minutes on a large database)")
+    }
+
     private var databaseSection: some View {
         SectionCard(
             title: "Database",
             systemImage: "cylinder.split.1x2",
-            subtitle: database.stats.lastLightRefresh.map { "updated \(Fmt.relative($0))" },
-            accessory: AnyView(
-                Button {
-                    database.refresh(dataDirectory: configService.getDataDirectory(), deep: true)
-                } label: {
-                    Image(systemName: "arrow.clockwise").font(.caption)
-                }
-                .buttonStyle(.plain)
-                .disabled(database.isRefreshing)
-                .help("Run a full refresh, including the deep scan")
-            )
+            subtitle: databaseFreshness,
+            accessory: AnyView(deepScanButton)
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 MetricGrid(minWidth: 118) {
-                    StatTile(label: "Events", value: Fmt.count(database.stats.eventCount),
-                             caption: "rows in event table", systemImage: "tray.full")
-                    StatTile(label: "Tags", value: Fmt.count(database.stats.tagCount),
+                    StatTile(label: "Events", value: eventsStoredDisplay,
+                             caption: database.stats.eventCountIsApprox
+                                 ? "estimate — deep scan for exact" : "rows in event table",
+                             systemImage: "tray.full")
+                    StatTile(label: "Tags", value: tagsStoredDisplay,
                              caption: tagsPerEvent, systemImage: "tag")
                     StatTile(label: "Authors", value: Fmt.count(database.stats.distinctAuthors),
                              caption: "distinct pubkeys", systemImage: "person.2")
                     StatTile(label: "Kinds", value: Fmt.count(database.stats.distinctKinds),
                              caption: "distinct event kinds", systemImage: "square.grid.2x2")
                     StatTile(label: "Last Hour", value: Fmt.count(database.stats.eventsLastHour),
-                             caption: "newly ingested",
+                             caption: "by authored time",
                              tone: (database.stats.eventsLastHour ?? 0) > 0 ? .accent : .neutral,
                              systemImage: "clock.arrow.circlepath")
                     StatTile(label: "Last 24h", value: Fmt.count(database.stats.eventsLast24h),
-                             caption: "newly ingested", systemImage: "calendar")
+                             caption: "by authored time", systemImage: "calendar")
                     StatTile(label: "Last 7 Days", value: Fmt.count(database.stats.eventsLast7d),
                              caption: database.stats.eventsPerDay.map { "\(Fmt.count($0))/day avg" } ?? "—",
                              systemImage: "calendar.badge.clock")
@@ -471,7 +492,7 @@ struct DashboardView: View {
                     StatTile(label: "Oldest Event", value: Fmt.relative(database.stats.oldestCreatedAt),
                              caption: "authored at", systemImage: "arrow.down.to.line")
                     StatTile(label: "Last Ingest", value: Fmt.relative(database.stats.lastSeen),
-                             caption: "relay first-seen", systemImage: "tray.and.arrow.down")
+                             caption: "relay first-seen · deep scan", systemImage: "tray.and.arrow.down")
                     StatTile(label: "Avg Event", value: Fmt.bytes(database.stats.avgEventBytes),
                              caption: "content length", systemImage: "doc.text")
                     StatTile(label: "Largest Event", value: Fmt.bytes(database.stats.maxEventBytes),
@@ -489,7 +510,7 @@ struct DashboardView: View {
                 if !database.stats.hourlyActivity.isEmpty {
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("Ingest — last 24 hours")
+                            Text("Authored — last 24 hours")
                                 .font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
                             Spacer()
                             Text("peak \(Fmt.count(database.stats.hourlyActivity.map(\.count).max()))/hr")
@@ -507,7 +528,7 @@ struct DashboardView: View {
                 if !database.stats.dailyActivity.isEmpty {
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text("Ingest — last 14 days")
+                            Text("Authored — last 14 days")
                                 .font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
                             Spacer()
                             Text("peak \(Fmt.count(database.stats.dailyActivity.map(\.count).max()))/day")
@@ -548,20 +569,43 @@ struct DashboardView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
+                if database.stats.deepTimedOut {
+                    Label("Deep scan timed out — full-table stats may be missing or stale at this database size.",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 9))
+                        .foregroundColor(Tone.warning.color)
+                } else if database.stats.lastDeepRefresh == nil {
+                    Text("Counts shown as ≈ are rowid estimates. Run the deep scan (⟳) for exact full-table stats.")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
             }
         }
     }
 
+    private var eventsStoredDisplay: String {
+        if let exact = database.stats.eventCount { return Fmt.count(exact) }
+        if let approx = database.stats.eventCountApprox { return "≈\(Fmt.count(approx))" }
+        return "—"
+    }
+
+    private var tagsStoredDisplay: String {
+        if let exact = database.stats.tagCount { return Fmt.count(exact) }
+        if let approx = database.stats.tagCountApprox { return "≈\(Fmt.count(approx))" }
+        return "—"
+    }
+
     private var tagsPerEvent: String {
-        guard let tags = database.stats.tagCount,
-              let events = database.stats.eventCount, events > 0 else { return "—" }
+        guard let tags = database.stats.bestTagCount,
+              let events = database.stats.bestEventCount, events > 0 else { return "—" }
         return String(format: "%.1f per event", Double(tags) / Double(events))
     }
 
     // MARK: - Storage
 
     private var storageSection: some View {
-        SectionCard(title: "Storage", systemImage: "internaldrive") {
+        SectionCard(title: "Storage", systemImage: "internaldrive", subtitle: databaseFreshness) {
             VStack(alignment: .leading, spacing: 12) {
                 MetricGrid(minWidth: 118) {
                     StatTile(label: "Database", value: Fmt.bytes(database.stats.databaseBytes),
@@ -736,8 +780,12 @@ struct DashboardView: View {
                              // Unreachable is only notable while the relay is supposed to be up.
                              tone: !relayService.isRunning ? .neutral : (metrics.snapshot.isReachable ? .good : .warning),
                              systemImage: "chart.bar")
-                    StatTile(label: "Deep DB Scan", value: database.stats.lastDeepRefresh.map { Fmt.relative($0) } ?? "—",
-                             caption: "full-table stats", systemImage: "magnifyingglass.circle")
+                    StatTile(label: "Deep DB Scan",
+                             value: database.stats.lastDeepRefresh.map { Fmt.relative($0) }
+                                 ?? (database.isDeepScanning ? "running" : "not run"),
+                             caption: database.stats.deepTimedOut ? "last run timed out" : "full-table stats",
+                             tone: database.stats.deepTimedOut ? .warning : .neutral,
+                             systemImage: "magnifyingglass.circle")
                     StatTile(label: "System Uptime", value: Fmt.duration(system.host.systemUptime),
                              caption: "host machine", systemImage: "desktopcomputer")
                 }

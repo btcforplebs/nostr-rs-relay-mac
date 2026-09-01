@@ -76,6 +76,14 @@ enum Fmt {
         return formatter.string(from: date)
     }
 
+    static func time(_ date: Date?) -> String {
+        guard let date = date else { return "—" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
     static func relative(_ date: Date?) -> String {
         guard let date = date else { return "—" }
         let formatter = RelativeDateTimeFormatter()

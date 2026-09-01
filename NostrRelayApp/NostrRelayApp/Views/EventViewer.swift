@@ -113,7 +113,9 @@ struct DatabaseStatsBar: View {
             )
             StatBadge(
                 title: "Events",
-                value: statsService.stats.eventCount.map { $0.formatted() } ?? "—",
+                value: statsService.stats.bestEventCount.map {
+                    (statsService.stats.eventCountIsApprox ? "≈" : "") + $0.formatted()
+                } ?? "—",
                 icon: "tray.full"
             )
 
