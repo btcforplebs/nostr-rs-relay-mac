@@ -575,6 +575,11 @@ struct DashboardView: View {
                           systemImage: "exclamationmark.triangle")
                         .font(.system(size: 9))
                         .foregroundColor(Tone.warning.color)
+                } else if database.stats.deepPartial {
+                    Label("Counts and distributions above are exact; full-table scans (content sizes, hidden) timed out at this database size.",
+                          systemImage: "info.circle")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
                 } else if database.stats.lastDeepRefresh == nil {
                     Text("Counts shown as ≈ are rowid estimates. Run the deep scan (⟳) for exact full-table stats.")
                         .font(.system(size: 9))
@@ -783,7 +788,9 @@ struct DashboardView: View {
                     StatTile(label: "Deep DB Scan",
                              value: database.stats.lastDeepRefresh.map { Fmt.relative($0) }
                                  ?? (database.isDeepScanning ? "running" : "not run"),
-                             caption: database.stats.deepTimedOut ? "last run timed out" : "full-table stats",
+                             caption: database.stats.deepTimedOut ? "last run timed out"
+                                 : database.stats.deepPartial ? "partial — scans timed out"
+                                 : "full-table stats",
                              tone: database.stats.deepTimedOut ? .warning : .neutral,
                              systemImage: "magnifyingglass.circle")
                     StatTile(label: "System Uptime", value: Fmt.duration(system.host.systemUptime),

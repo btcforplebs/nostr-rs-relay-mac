@@ -100,6 +100,8 @@ class DatabaseStatsService: ObservableObject {
         var lightTimedOut: Bool = false
         var activityTimedOut: Bool = false
         var deepTimedOut: Bool = false
+        /// The index-backed distribution tier landed but the full-table scans didn't.
+        var deepPartial: Bool = false
         var databaseExists: Bool = false
 
         /// Mean events per day over the observed 7-day window.
@@ -180,12 +182,16 @@ class DatabaseStatsService: ObservableObject {
                 await MainActor.run { self.isDeepScanning = false }
                 return
             }
-            // Two children so a timeout in one group still lands the other's rows.
+            // Two children, split by cost class: the distribution tier is
+            // index-backed and finishes even on a 34 GB database; the scan tier
+            // walks the whole event table and may not. Separate children mean a
+            // scan-tier timeout can't throw away the distribution rows.
             var counts = await MainActor.run { self.stats }
-            let countsTimedOut = !Self.applyDeepCounts(dbPath: dbURL.path, into: &counts, registry: registry)
-            let contentTimedOut = !Self.applyDeepContent(dbPath: dbURL.path, into: &counts, registry: registry)
-            counts.deepTimedOut = countsTimedOut || contentTimedOut
-            if !counts.deepTimedOut { counts.lastDeepRefresh = Date() }
+            let distributionTimedOut = !Self.applyDeepDistribution(dbPath: dbURL.path, into: &counts, registry: registry)
+            let scansTimedOut = !Self.applyDeepScans(dbPath: dbURL.path, into: &counts, registry: registry)
+            counts.deepTimedOut = distributionTimedOut && scansTimedOut
+            counts.deepPartial = !distributionTimedOut && scansTimedOut
+            if !distributionTimedOut || !scansTimedOut { counts.lastDeepRefresh = Date() }
 
             let final = counts
             await MainActor.run {
@@ -205,6 +211,7 @@ class DatabaseStatsService: ObservableObject {
                 merged.topKinds = final.topKinds
                 merged.topAuthors = final.topAuthors
                 merged.deepTimedOut = final.deepTimedOut
+                merged.deepPartial = final.deepPartial
                 merged.lastDeepRefresh = final.lastDeepRefresh
                 self.stats = merged
                 self.isDeepScanning = false
@@ -330,36 +337,46 @@ class DatabaseStatsService: ObservableObject {
         }
     }
 
-    /// Exact counts and kind distribution. Returns false on timeout.
-    nonisolated private static func applyDeepCounts(dbPath: String, into result: inout Stats, registry: ChildRegistry) -> Bool {
+    /// Exact counts plus the kind and author distributions. Every statement
+    /// here is answerable from an index (bare count(*) walks the smallest
+    /// index b-tree; kind/author aggregates walk kind_index/author_index), so
+    /// this tier completes even on databases where a table scan cannot.
+    /// Returns false on timeout.
+    nonisolated private static func applyDeepDistribution(dbPath: String, into result: inout Stats, registry: ChildRegistry) -> Bool {
         let sql = """
         SELECT 'events', count(*) FROM event;
         SELECT 'tags', count(*) FROM tag;
-        SELECT 'hidden', count(*) FROM event WHERE hidden = 1;
-        SELECT 'delegated', count(*) FROM event WHERE delegated_by IS NOT NULL;
         SELECT 'kinds', count(DISTINCT kind) FROM event;
         SELECT 'kind', kind, count(*) FROM event GROUP BY kind ORDER BY 3 DESC LIMIT 8;
+        SELECT 'authors', count(DISTINCT author) FROM event;
+        SELECT 'author', substr(lower(hex(author)), 1, 16), count(*) FROM event
+            GROUP BY author ORDER BY 3 DESC LIMIT 6;
         """
 
         switch query(dbPath: dbPath, sql: sql, timeout: deepTimeout, registry: registry) {
         case .rows(let output):
             var kinds: [KindCount] = []
+            var authors: [AuthorCount] = []
             for row in rows(from: output) {
                 guard let tag = row.first else { continue }
                 switch tag {
-                case "events":    result.eventCount = row.int(1)
-                case "tags":      result.tagCount = row.int(1)
-                case "hidden":    result.hiddenCount = row.int(1)
-                case "delegated": result.delegatedCount = row.int(1)
-                case "kinds":     result.distinctKinds = row.int(1)
+                case "events":  result.eventCount = row.int(1)
+                case "tags":    result.tagCount = row.int(1)
+                case "kinds":   result.distinctKinds = row.int(1)
+                case "authors": result.distinctAuthors = row.int(1)
                 case "kind":
                     if let k = row.int(1), let c = row.int(2) {
                         kinds.append(KindCount(kind: k, count: c))
+                    }
+                case "author":
+                    if let pk = row.string(1), let c = row.int(2) {
+                        authors.append(AuthorCount(pubkey: pk, count: c))
                     }
                 default: break
                 }
             }
             result.topKinds = kinds
+            result.topAuthors = authors
             return true
         case .timedOut:
             return false
@@ -368,39 +385,36 @@ class DatabaseStatsService: ObservableObject {
         }
     }
 
-    /// Content sizes, author distribution and first_seen span. Returns false on timeout.
-    nonisolated private static func applyDeepContent(dbPath: String, into result: inout Stats, registry: ChildRegistry) -> Bool {
+    /// Everything that genuinely requires walking the event table: content
+    /// sizes, unindexed flag counts, and the first_seen span (first_seen has
+    /// no index). May time out on very large databases — that only costs
+    /// these fields, never the distribution tier. Returns false on timeout.
+    nonisolated private static func applyDeepScans(dbPath: String, into result: inout Stats, registry: ChildRegistry) -> Bool {
         let sql = """
-        SELECT 'authors', count(DISTINCT author) FROM event;
+        SELECT 'hidden', count(*) FROM event WHERE hidden = 1;
+        SELECT 'delegated', count(*) FROM event WHERE delegated_by IS NOT NULL;
         SELECT 'content_bytes', coalesce(sum(length(content)), 0) FROM event;
         SELECT 'avg_bytes', coalesce(cast(avg(length(content)) AS INTEGER), 0) FROM event;
         SELECT 'max_bytes', coalesce(max(length(content)), 0) FROM event;
         SELECT 'first_seen', min(first_seen) FROM event;
         SELECT 'last_seen', max(first_seen) FROM event;
-        SELECT 'author', substr(lower(hex(author)), 1, 16), count(*) FROM event
-            GROUP BY author ORDER BY 3 DESC LIMIT 6;
         """
 
         switch query(dbPath: dbPath, sql: sql, timeout: deepTimeout, registry: registry) {
         case .rows(let output):
-            var authors: [AuthorCount] = []
             for row in rows(from: output) {
                 guard let tag = row.first else { continue }
                 switch tag {
-                case "authors":       result.distinctAuthors = row.int(1)
+                case "hidden":        result.hiddenCount = row.int(1)
+                case "delegated":     result.delegatedCount = row.int(1)
                 case "content_bytes": result.contentBytes = row.int64(1)
                 case "avg_bytes":     result.avgEventBytes = row.int(1)
                 case "max_bytes":     result.maxEventBytes = row.int(1)
                 case "first_seen":    result.firstSeen = row.date(1)
                 case "last_seen":     result.lastSeen = row.date(1)
-                case "author":
-                    if let pk = row.string(1), let c = row.int(2) {
-                        authors.append(AuthorCount(pubkey: pk, count: c))
-                    }
                 default: break
                 }
             }
-            result.topAuthors = authors
             return true
         case .timedOut:
             return false
