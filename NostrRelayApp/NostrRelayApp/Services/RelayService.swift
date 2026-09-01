@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import Combine
 
 @MainActor
@@ -48,6 +49,30 @@ class RelayService: ObservableObject {
     private let maxLogLines = 500
 
     private var readinessTask: Task<Void, Never>?
+
+    init() {
+        // Quitting the app must take the relay down with it. Nothing in the
+        // SwiftUI quit path calls stop(), and a Process child outlives its
+        // parent on macOS — the orphan keeps the port and the DB open.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let process = self.process, process.isRunning else { return }
+                process.terminate()
+                // Give the relay a moment to checkpoint its WAL before the app
+                // exits, but never wedge the quit — past the deadline it keeps
+                // shutting down on its own, and killStaleProcesses() reaps any
+                // leftover on next start.
+                let deadline = Date().addingTimeInterval(10)
+                while process.isRunning && Date() < deadline {
+                    Thread.sleep(forTimeInterval: 0.1)
+                }
+            }
+        }
+    }
 
     func start(configService: ConfigurationService) {
         guard !isRunning, !isStarting else { return }
