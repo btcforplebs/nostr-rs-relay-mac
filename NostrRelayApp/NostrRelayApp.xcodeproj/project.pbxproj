@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		AAAA0001 /* NostrRelayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0001 /* NostrRelayApp.swift */; };
 		AAAA0003 /* NostrEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0003 /* NostrEvent.swift */; };
-		AAAA0004 /* MediaItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0004 /* MediaItem.swift */; };
 		AAAA0005 /* ConfigurationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0005 /* ConfigurationService.swift */; };
 		AAAA0006 /* RelayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0006 /* RelayService.swift */; };
 		AAAA0007 /* WebSocketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0007 /* WebSocketClient.swift */; };
@@ -22,12 +21,15 @@
 		AAAA0017 /* templates in Resources */ = {isa = PBXBuildFile; fileRef = FFFF0017 /* templates */; };
 		AAAA0018 /* ColorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0018 /* ColorExtension.swift */; };
 		AAAA0025 /* EventViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0025 /* EventViewer.swift */; };
+		AAAA0026 /* DatabaseStatsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0026 /* DatabaseStatsService.swift */; };
+		AAAA0027 /* MetricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0027 /* MetricsService.swift */; };
+		AAAA0028 /* SystemStatsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0028 /* SystemStatsService.swift */; };
+		AAAA0029 /* DashboardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFF0029 /* DashboardComponents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		FFFF0001 /* NostrRelayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrRelayApp.swift; sourceTree = "<group>"; };
 		FFFF0003 /* NostrEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NostrEvent.swift; sourceTree = "<group>"; };
-		FFFF0004 /* MediaItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaItem.swift; sourceTree = "<group>"; };
 		FFFF0005 /* ConfigurationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationService.swift; sourceTree = "<group>"; };
 		FFFF0006 /* RelayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayService.swift; sourceTree = "<group>"; };
 		FFFF0007 /* WebSocketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketClient.swift; sourceTree = "<group>"; };
@@ -42,6 +44,10 @@
 		FFFF0020 /* NostrRelayApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = NostrRelayApp.entitlements; path = App/NostrRelayApp.entitlements; sourceTree = "<group>"; };
 		FFFF0099 /* NostrRelayApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NostrRelayApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FFFF0025 /* EventViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventViewer.swift; sourceTree = "<group>"; };
+		FFFF0026 /* DatabaseStatsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseStatsService.swift; sourceTree = "<group>"; };
+		FFFF0027 /* MetricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricsService.swift; sourceTree = "<group>"; };
+		FFFF0028 /* SystemStatsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemStatsService.swift; sourceTree = "<group>"; };
+		FFFF0029 /* DashboardComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardComponents.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -70,7 +76,6 @@
 			isa = PBXGroup;
 			children = (
 				FFFF0003 /* NostrEvent.swift */,
-				FFFF0004 /* MediaItem.swift */,
 			);
 			path = NostrRelayApp/Models;
 			sourceTree = "<group>";
@@ -82,6 +87,9 @@
 				FFFF0006 /* RelayService.swift */,
 				FFFF0007 /* WebSocketClient.swift */,
 				FFFF0021 /* SpamFilterService.swift */,
+				FFFF0026 /* DatabaseStatsService.swift */,
+				FFFF0027 /* MetricsService.swift */,
+				FFFF0028 /* SystemStatsService.swift */,
 			);
 			path = NostrRelayApp/Services;
 			sourceTree = "<group>";
@@ -93,6 +101,7 @@
 				FFFF0009 /* SettingsView.swift */,
 				FFFF0014 /* LogsView.swift */,
 				FFFF0025 /* EventViewer.swift */,
+				FFFF0029 /* DashboardComponents.swift */,
 			);
 			path = NostrRelayApp/Views;
 			sourceTree = "<group>";
@@ -188,7 +197,6 @@
 			files = (
 				AAAA0001 /* NostrRelayApp.swift in Sources */,
 				AAAA0003 /* NostrEvent.swift in Sources */,
-				AAAA0004 /* MediaItem.swift in Sources */,
 				AAAA0005 /* ConfigurationService.swift in Sources */,
 				AAAA0006 /* RelayService.swift in Sources */,
 				AAAA0007 /* WebSocketClient.swift in Sources */,
@@ -198,6 +206,10 @@
 				AAAA0014 /* LogsView.swift in Sources */,
 				AAAA0018 /* ColorExtension.swift in Sources */,
 				AAAA0025 /* EventViewer.swift in Sources */,
+				AAAA0026 /* DatabaseStatsService.swift in Sources */,
+				AAAA0027 /* MetricsService.swift in Sources */,
+				AAAA0028 /* SystemStatsService.swift in Sources */,
+				AAAA0029 /* DashboardComponents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

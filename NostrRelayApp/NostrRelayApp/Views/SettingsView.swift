@@ -67,6 +67,26 @@ struct BasicSettingsView: View {
                 }
             }
             .disabled(configService.config.appSpecific.useManualConfig)
+
+            Section("Startup") {
+                Toggle("Start relay when app launches", isOn: $configService.config.appSpecific.autoStart)
+                    .onChange(of: configService.config.appSpecific.autoStart) { _ in
+                        configService.save()
+                    }
+                Text("The relay comes up automatically when you open the app. Turn this off to start it yourself from the dashboard or the menu bar.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Section("Logging") {
+                Toggle("Verbose relay logs", isOn: $configService.config.appSpecific.verboseLogging)
+                    .onChange(of: configService.config.appSpecific.verboseLogging) { _ in
+                        configService.save()
+                    }
+                Text("Off logs only warnings and errors, which saves CPU and energy on a busy relay. Turn on for full connection/event logs. Restart the relay to apply.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
             
             if configService.config.appSpecific.useManualConfig {
                 Section {

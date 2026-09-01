@@ -50,27 +50,64 @@ struct NostrRelayApp: App {
 }
 
 struct ContentView: View {
+    @EnvironmentObject var relayService: RelayService
+    @EnvironmentObject var configService: ConfigurationService
+    @EnvironmentObject var eventService: EventViewerService
+
+    enum Tab: Hashable {
+        case dashboard, logs, data, settings
+    }
+
+    @State private var selection: Tab = .dashboard
+
     var body: some View {
-        TabView {
+        TabView(selection: $selection) {
             DashboardView()
                 .tabItem {
                     Label("Dashboard", systemImage: "server.rack")
                 }
-            
+                .tag(Tab.dashboard)
+
             LogsView()
                 .tabItem {
                     Label("Logs", systemImage: "terminal")
                 }
-            
+                .tag(Tab.logs)
+
             EventViewer()
                 .tabItem {
                     Label("Data", systemImage: "tablecells")
                 }
-            
+                .tag(Tab.data)
+
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gear")
                 }
+                .tag(Tab.settings)
+        }
+        .onChange(of: selection) { _ in updateLiveConnection() }
+        .onChange(of: relayService.isServerReady) { _ in updateLiveConnection() }
+        .task {
+            // Bring the relay up as soon as the app is running. start() already
+            // guards on isRunning/isStarting, so reopening this window (the app
+            // stays alive in the menu bar after it is closed) is a no-op.
+            if configService.config.appSpecific.autoStart {
+                relayService.start(configService: configService)
+            }
+        }
+    }
+
+    /// Only hold a live event subscription when a tab that displays events is
+    /// visible — the stream costs CPU/energy on a busy relay.
+    private func updateLiveConnection() {
+        let needsLive = (selection == .dashboard || selection == .data) && relayService.isServerReady
+        // isActive (not isConnected) so a connection that is mid-retry
+        // isn't torn down and rebuilt on tab switches.
+        if needsLive && !eventService.isActive {
+            eventService.connect(port: configService.config.port, config: configService.config)
+        } else if !needsLive && eventService.isActive {
+            eventService.disconnect()
         }
     }
 }

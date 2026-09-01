@@ -27,8 +27,33 @@ struct RelayConfig: Codable, Equatable {
     
     struct AppSpecific: Codable, Equatable {
         var launchAtLogin: Bool = false
-        var autoStart: Bool = false // Start relay when app launches
+        var autoStart: Bool = true // Start relay when app launches
         var useManualConfig: Bool = false // If true, don't overwrite config.toml from UI
+        var verboseLogging: Bool = false // Full INFO relay logs (uses more energy)
+        // Bumped when a stored value has to be re-defaulted. Files written
+        // before this key existed decode as version 0.
+        var settingsVersion: Int = 1
+
+        init() {}
+
+        // Tolerate settings.json files written before new keys existed
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+            useManualConfig = try c.decodeIfPresent(Bool.self, forKey: .useManualConfig) ?? false
+            verboseLogging = try c.decodeIfPresent(Bool.self, forKey: .verboseLogging) ?? false
+            settingsVersion = try c.decodeIfPresent(Int.self, forKey: .settingsVersion) ?? 0
+
+            if settingsVersion < 1 {
+                // autoStart was written to disk but never wired up or exposed in
+                // the UI, so a stored `false` is a dead default rather than a
+                // user's choice. Adopt the new default exactly once.
+                autoStart = true
+                settingsVersion = 1
+            } else {
+                autoStart = try c.decodeIfPresent(Bool.self, forKey: .autoStart) ?? true
+            }
+        }
     }
 }
 
@@ -44,7 +69,14 @@ class ConfigurationService: ObservableObject {
     init() {
         // Setup paths
         guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            fatalError("Cannot access Application Support directory")
+            // Fall back to temp directory if Application Support is inaccessible
+            let fallback = FileManager.default.temporaryDirectory.appendingPathComponent("NostrRelayApp")
+            self.appSupportDir = fallback
+            self.configFileURL = fallback.appendingPathComponent("settings.json")
+            self.tomlFileURL = fallback.appendingPathComponent("config.toml")
+            self.config = RelayConfig()
+            try? fileManager.createDirectory(at: fallback, withIntermediateDirectories: true)
+            return
         }
         
         self.appSupportDir = appSupport.appendingPathComponent("NostrRelayApp")

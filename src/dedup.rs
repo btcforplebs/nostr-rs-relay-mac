@@ -28,7 +28,7 @@ impl DedupCache {
         content.hash(&mut hasher);
         let key = hasher.finish();
 
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
 
         if let Some(&timestamp) = cache.get(&key) {
@@ -45,7 +45,7 @@ impl DedupCache {
     /// Purges expired entries to prevent memory leaks.
     /// Should be called periodically.
     pub fn purge(&self) {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
         cache.retain(|_, &mut timestamp| now.duration_since(timestamp) < self.window);
     }

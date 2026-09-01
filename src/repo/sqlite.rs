@@ -176,7 +176,7 @@ impl SqliteRepo {
                 params![e.kind, author, e.kind, author],
             )?;
             if update_count > 0 {
-                info!(
+                debug!(
                     "removed {} older replaceable kind {} events for author: {:?}",
                     update_count,
                     e.kind,
@@ -190,7 +190,7 @@ impl SqliteRepo {
                 "DELETE FROM event WHERE kind=? AND author=? AND id IN (SELECT e.id FROM event e LEFT JOIN tag t ON e.id=t.event_id WHERE e.kind=? AND e.author=? AND t.name='d' AND t.value=? ORDER BY t.created_at DESC LIMIT -1 OFFSET 1);",
                 params![e.kind, pubkey_blob, e.kind, pubkey_blob, d_tag])?;
             if update_count > 0 {
-                info!(
+                debug!(
                     "removed {} older parameterized replaceable kind {} events for author: {:?}",
                     update_count,
                     e.kind,
@@ -214,7 +214,7 @@ impl SqliteRepo {
             );
             let mut stmt = tx.prepare(&query)?;
             let update_count = stmt.execute(rusqlite::params_from_iter(params))?;
-            info!(
+            debug!(
                 "hid {} deleted events for author {:?}",
                 update_count,
                 e.get_author_prefix()
@@ -398,8 +398,6 @@ impl NostrRepo for SqliteRepo {
                     let mut slow_first_event;
                     let mut last_successful_send = Instant::now();
                     // execute the query.
-                    // make the actual SQL query (with parameters inserted) available
-                    conn.trace(Some(|x| trace!("SQL trace: {:?}", x)));
                     let mut stmt = conn.prepare_cached(&q)?;
                     let mut event_rows = stmt.query(rusqlite::params_from_iter(p))?;
 
@@ -901,7 +899,7 @@ WHERE pubkey = ?1 AND status = 'Unpaid'
 ORDER BY created_at DESC
 LIMIT 1;
         "#;
-            let mut stmt = tx.prepare(query).unwrap();
+            let mut stmt = tx.prepare(query)?;
             stmt.query_row(params![&pubkey_str], |r| {
                 let amount: u64 = r.get(0)?;
                 let payment_hash: String = r.get(1)?;

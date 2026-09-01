@@ -3,27 +3,31 @@ import SwiftUI
 struct EventViewer: View {
     @EnvironmentObject var service: EventViewerService
     @EnvironmentObject var configService: ConfigurationService
+    @StateObject private var statsService = DatabaseStatsService()
     @State private var kindFilterString = ""
-    
+
     var body: some View {
         List(service.events) { event in
             EventRow(event: event)
         }
         .listStyle(.inset)
+        .safeAreaInset(edge: .top) {
+            DatabaseStatsBar(statsService: statsService, dataDirectory: configService.getDataDirectory())
+        }
         .safeAreaInset(edge: .bottom) {
             HStack {
                 Circle()
                     .fill(service.isConnected ? Color.green : Color.red)
                     .frame(width: 8, height: 8)
                 
-                Text(service.isConnected ? "Connected" : "Disconnected")
+                Text(service.isConnected ? "Connected" : (service.isActive ? "Reconnecting…" : "Disconnected"))
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
+
                 Spacer()
-                
+
                 Button(action: toggleConnection) {
-                    Text(service.isConnected ? "Disconnect" : "Connect")
+                    Text(service.isActive ? "Disconnect" : "Connect")
                 }
             }
             .padding()
@@ -54,14 +58,15 @@ struct EventViewer: View {
 
         }
         .onAppear {
-            if !service.isConnected {
-                service.connect(port: configService.config.port, config: configService.config)
-            }
+            statsService.startAutoRefresh(dataDirectory: configService.getDataDirectory())
+        }
+        .onDisappear {
+            statsService.stopAutoRefresh()
         }
     }
     
     private func toggleConnection() {
-        if service.isConnected {
+        if service.isActive {
             service.disconnect()
         } else {
             service.connect(port: configService.config.port, config: configService.config)
@@ -69,7 +74,7 @@ struct EventViewer: View {
     }
     
     private func applyFilter() {
-        let cleanString = kindFilterString.filesRemovingAll(where: { !$0.isNumber && $0 != "," })
+        let cleanString = kindFilterString.removingCharacters(where: { !$0.isNumber && $0 != "," })
         let kinds = cleanString.components(separatedBy: ",")
             .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
         
@@ -83,8 +88,94 @@ struct EventViewer: View {
 }
 
 extension String {
-    func filesRemovingAll(where predicate: (Character) throws -> Bool) -> String {
+    func removingCharacters(where predicate: (Character) throws -> Bool) -> String {
         return (try? filter { try !predicate($0) }) ?? self
+    }
+}
+
+// MARK: - Database Stats
+
+struct DatabaseStatsBar: View {
+    @ObservedObject var statsService: DatabaseStatsService
+    let dataDirectory: URL
+
+    var body: some View {
+        HStack(spacing: 20) {
+            StatBadge(
+                title: "Database",
+                value: format(bytes: statsService.stats.databaseBytes),
+                icon: "internaldrive"
+            )
+            StatBadge(
+                title: "WAL",
+                value: format(bytes: statsService.stats.walBytes),
+                icon: "doc.badge.clock"
+            )
+            StatBadge(
+                title: "Events",
+                value: statsService.stats.eventCount.map { $0.formatted() } ?? "—",
+                icon: "tray.full"
+            )
+
+            if !statsService.stats.topKinds.isEmpty {
+                Divider().frame(height: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Top Kinds")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(statsService.stats.topKinds.map { "\($0.kind) (\($0.count.formatted()))" }.joined(separator: "  "))
+                        .font(.caption.monospaced())
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            Button(action: {
+                statsService.refresh(dataDirectory: dataDirectory)
+            }) {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.plain)
+            .disabled(statsService.isRefreshing)
+            .help("Refresh database stats")
+
+            Button(action: {
+                NSWorkspace.shared.activateFileViewerSelecting([dataDirectory.appendingPathComponent("nostr.db")])
+            }) {
+                Image(systemName: "folder")
+            }
+            .buttonStyle(.plain)
+            .help("Reveal database in Finder")
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.regularMaterial)
+        .overlay(Divider(), alignment: .bottom)
+    }
+
+    private func format(bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+}
+
+struct StatBadge: View {
+    let title: String
+    let value: String
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .foregroundColor(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Text(value)
+                    .font(.callout.monospacedDigit().bold())
+            }
+        }
     }
 }
 

@@ -144,11 +144,9 @@ async fn handle_web_request(
                                     dedup_cache,
                                 ));
                             }
-                            // todo: trace, don't print...
-                            Err(e) => println!(
-                                "error when trying to upgrade connection \
-                                 from address {remote_addr} to websocket connection. \
-                                 Error is: {e}",
+                            Err(e) => warn!(
+                                "error upgrading connection from {} to websocket: {}",
+                                remote_addr, e
                             ),
                         }
                     });
@@ -232,7 +230,7 @@ async fn handle_web_request(
         }
         ("/favicon.ico", false) => {
             if let Some(favicon_bytes) = favicon {
-                info!("returning favicon");
+                trace!("returning favicon");
                 Ok(Response::builder()
                     .status(StatusCode::OK)
                     .header("Content-Type", "image/x-icon")
@@ -1008,7 +1006,7 @@ pub fn start_server(settings: &Settings, shutdown_rx: MpscReceiver<()>) -> Resul
             }))
             .with_graceful_shutdown(ctrl_c_or_signal(webserver_shutdown_listen));
             if let Err(e) = server.await {
-                eprintln!("server error: {}", e);
+                error!("server error: {}", e);
             }
         });
         // Await the server thread to keep the runtime alive until it finishes
@@ -1102,7 +1100,7 @@ fn check_spam(event: &Event, settings: &Settings, dedup_cache: Option<&Arc<Dedup
             };
             
             if !whitelisted {
-                warn!("Blocked event from banned pubkey: {}", event.pubkey);
+                debug!("Blocked event from banned pubkey: {}", event.pubkey);
                 return Err("blocked: pubkey banned".to_string());
             }
         }
@@ -1112,7 +1110,7 @@ fn check_spam(event: &Event, settings: &Settings, dedup_cache: Option<&Arc<Dedup
     if let Some(blocked_content) = &settings.spam_filter.blocked_content {
         for phrase in blocked_content {
             if event.content.contains(phrase) {
-                warn!("Blocked event with banned content: {}", phrase);
+                debug!("Blocked event with banned content: {}", phrase);
                 return Err("blocked: content banned".to_string());
             }
         }
@@ -1121,7 +1119,7 @@ fn check_spam(event: &Event, settings: &Settings, dedup_cache: Option<&Arc<Dedup
     // Check deduplication
     if let Some(cache) = dedup_cache {
         if cache.check_and_add(&event.pubkey, &event.content) {
-            warn!("Blocked duplicate event from: {}", event.pubkey);
+            debug!("Blocked duplicate event from: {}", event.pubkey);
             return Err("duplicate: message detected".to_string());
         }
     }
@@ -1199,13 +1197,12 @@ async fn nostr_server(
     let mut client_published_event_count: usize = 0;
     let mut client_received_event_count: usize = 0;
 
-    let unspec = "<unspecified>".to_string();
-    info!("new client connection (cid: {}, ip: {:?})", cid, conn.ip());
-    let origin = client_info.origin.as_ref().unwrap_or(&unspec);
-    let user_agent = client_info.user_agent.as_ref().unwrap_or(&unspec);
-    info!(
-        "cid: {}, origin: {:?}, user-agent: {:?}",
-        cid, origin, user_agent
+    debug!(
+        client_id = %cid,
+        ip = %conn.ip(),
+        origin = %client_info.origin.as_deref().unwrap_or("<unspecified>"),
+        user_agent = %client_info.user_agent.as_deref().unwrap_or("<unspecified>"),
+        "new client connection"
     );
 
     // Measure connections
@@ -1282,33 +1279,46 @@ async fn nostr_server(
                 }
             },
             // TODO: consider logging the LaggedRecv error
-            Ok(global_event) = bcast_rx.recv() => {
+            result = bcast_rx.recv() => {
                 let mut should_disconnect = false;
-                // an event has been broadcast to all clients
-                // first check if there is a subscription for this event.
-                for (s, sub) in conn.subscriptions() {
-                    if !sub.interested_in_event(&global_event) {
-                        continue;
-                    }
-                    // TODO: serialize at broadcast time, instead of
-                    // once for each consumer.
-                    if let Ok(event_str) = serde_json::to_string(&global_event) {
-                        if allowed_to_send(&global_event, &conn, &settings) {
-                            // create an event response and send it
-                            trace!("sub match for client: {}, sub: {:?}, event: {:?}",
-                               cid, s,
-                               global_event.get_event_id_prefix());
-                            let subesc = s.replace('"', "");
-                            metrics.sent_events.with_label_values(&["realtime"]).inc();
-                            if ws_stream.send(Message::Text(format!("[\"EVENT\",\"{subesc}\",{event_str}]"))).await.is_err() {
-                                debug!("failed to send message, closing connection (cid: {})", cid);
-                                metrics.disconnects.with_label_values(&["send_error"]).inc();
-                                should_disconnect = true;
-                                break;
+                match result {
+                    Ok(global_event) => {
+                        // serialize once for all matching subscriptions, instead
+                        // of once for each consumer.
+                        let event_str = match serde_json::to_string(&global_event) {
+                            Ok(s) => s,
+                            Err(_) => {
+                                warn!("could not serialize event: {:?}", global_event.get_event_id_prefix());
+                                continue;
+                            }
+                        };
+                        // an event has been broadcast to all clients
+                        // first check if there is a subscription for this event.
+                        for (s, sub) in conn.subscriptions() {
+                            if !sub.interested_in_event(&global_event) {
+                                continue;
+                            }
+                            if allowed_to_send(&global_event, &conn, &settings) {
+                                // create an event response and send it
+                                trace!("sub match for client: {}, sub: {:?}, event: {:?}",
+                                   cid, s,
+                                   global_event.get_event_id_prefix());
+                                let subesc = s.replace('"', "");
+                                metrics.sent_events.with_label_values(&["realtime"]).inc();
+                                if ws_stream.send(Message::Text(format!("[\"EVENT\",\"{subesc}\",{event_str}]"))).await.is_err() {
+                                    debug!("failed to send message, closing connection (cid: {})", cid);
+                                    metrics.disconnects.with_label_values(&["send_error"]).inc();
+                                    should_disconnect = true;
+                                    break;
+                                }
                             }
                         }
-                    } else {
-                        warn!("could not serialize event: {:?}", global_event.get_event_id_prefix());
+                    },
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        warn!(client_id = %cid, dropped = n, "broadcast channel lagged, events dropped");
+                    },
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        break;
                     }
                 }
                 if should_disconnect {

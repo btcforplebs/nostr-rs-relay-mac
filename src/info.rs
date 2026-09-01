@@ -110,14 +110,13 @@ impl From<Settings> for RelayInfo {
                 publication: post_fee,
             };
 
-            let payment_url = if p.enabled && i.relay_url.is_some() {
-                Some(format!(
-                    "{}join",
-                    i.relay_url.clone().unwrap().replace("ws", "http")
-                ))
-            } else {
-                None
-            };
+            let payment_url = i.relay_url.as_ref().and_then(|url| {
+                if p.enabled {
+                    Some(format!("{}join", url.replace("ws", "http")))
+                } else {
+                    None
+                }
+            });
             (payment_url, Some(fees))
         } else {
             (None, None)

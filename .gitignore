@@ -31,6 +31,12 @@ DerivedData/
 .swiftpm/xcode
 .build/
 
+# Logs
+*.log
+
+# Python virtual environments
+spam_analysis_venv/
+
 # NostrRelayApp
 NostrRelayApp.app/
 
