@@ -293,6 +293,11 @@ class ConfigurationService: ObservableObject {
     }
 
     private func generateTOML() -> String {
+        var relayPageLine = ""
+        if let landingPage = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "templates") {
+            relayPageLine = "relay_page = \"\(landingPage.path)\""
+        }
+
         return """
         # NostrRelayApp Configuration
         # Generated: \(Date())
@@ -304,6 +309,7 @@ class ConfigurationService: ObservableObject {
         pubkey = "\(tomlEscape(config.pubkey))"
         contact = "\(tomlEscape(config.contact))"
         relay_icon = "\(tomlEscape(config.icon))"
+        \(relayPageLine)
 
         [network]
         address = "\(tomlEscape(config.bindAddress))"
