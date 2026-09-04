@@ -1,71 +1,291 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta name="theme-color" content="#ffffff" />
     <meta charset="UTF-8" />
-    <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{.RelayName}}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="theme-color" content="#0b0b0f" />
+    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+    <title>Nostr Relay</title>
     <style>
-      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap");
+      :root {
+        color-scheme: dark;
+        --bg: #0b0b0f;
+        --panel: #141319;
+        --line: #24232c;
+        --text: #f2f1f5;
+        --muted: #8b899a;
+        --accent: #b58cff;
+        --accent-dim: #7a5fb0;
+        --ok: #55d68a;
+        --down: #e0607a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
       body {
-        font-family: "Inter", sans-serif;
-        min-height: 100vh;
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        background: radial-gradient(circle at 50% 0%, #17151f 0%, var(--bg) 60%);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
         display: flex;
         flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        padding: 8vh 20px 40px;
+      }
+
+      main {
+        width: 100%;
+        max-width: 560px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        align-self: center;
+        font-size: 13px;
+        color: var(--muted);
+        letter-spacing: 0.02em;
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+
+      .status[data-state="online"] .dot {
+        background: var(--ok);
+        box-shadow: 0 0 8px var(--ok);
+      }
+
+      .status[data-state="offline"] .dot {
+        background: var(--down);
+      }
+
+      h1 {
+        margin: 0;
+        text-align: center;
+        font-size: clamp(2rem, 6vw, 2.75rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+
+      .description {
+        margin: 0;
+        text-align: center;
+        color: var(--muted);
+        font-size: 1.05rem;
+        line-height: 1.5;
+        white-space: pre-line;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .row + .row {
+        border-top: 1px solid var(--line);
+        padding-top: 14px;
+      }
+
+      .label {
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      .value {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.9rem;
+        text-align: right;
+        overflow-wrap: anywhere;
+      }
+
+      button.copy {
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--accent);
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+
+      button.copy:hover {
+        border-color: var(--accent-dim);
+        background: rgba(181, 140, 255, 0.08);
+      }
+
+      .nips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: flex-end;
+      }
+
+      .nip {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+        color: var(--accent);
+        background: rgba(181, 140, 255, 0.1);
+        border: 1px solid rgba(181, 140, 255, 0.25);
+        border-radius: 6px;
+        padding: 2px 6px;
+      }
+
+      footer {
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      footer a {
+        color: var(--muted);
+      }
+
+      [hidden] {
+        display: none !important;
       }
     </style>
   </head>
-  <body class="bg-gray-900 text-white">
-    <div class="flex-grow flex flex-col justify-center items-center px-4">
-      <!-- Container -->
-      <div class="text-center max-w-2xl">
-        <!-- Heading (Relay Name) -->
-        <h1 class="text-5xl md:text-6xl font-bold text-purple-400 mb-6">
-          {{.RelayName}}
-        </h1>
-
-        <!-- Relay Description -->
-        <p class="text-xl md:text-2xl text-gray-300 mb-8">
-          {{.RelayDescription}}
-        </p>
-
-        <!-- Relay URL -->
-        <a
-          href="#"
-          class="text-lg md:text-xl text-purple-300 hover:text-purple-400 underline"
-        >
-          {{.RelayURL}}
-        </a>
+  <body>
+    <main>
+      <div class="status" id="status" data-state="loading">
+        <span class="dot"></span>
+        <span id="status-text">Checking relay…</span>
       </div>
-    </div>
 
-    <!-- Footer -->
-    <footer class="text-center py-6 bg-gray-800 w-full">
-      <p class="text-lg text-gray-400">
-        Built with Love by
-        <a
-          href="https://bitvora.com"
-          target="_blank"
-          class="text-purple-300 hover:text-purple-400 underline"
-          >Bitvora</a
-        >
-        and Proudly powered by
-        <a
-          href="https://khatru.nostr.technology/"
-          target="_blank"
-          class="text-purple-300 hover:text-purple-400 underline"
-          >Khatru</a
-        >
-        |
-        <a
-          href="https://github.com/bitvora/haven"
-          target="_blank"
-          class="text-purple-300 hover:text-purple-400 underline"
-          >NostrRelay Relay on Github</a
-        >
-      </p>
-    </footer>
+      <h1 id="relay-name">Nostr Relay</h1>
+      <p class="description" id="relay-description" hidden></p>
+
+      <div class="panel" id="panel" hidden>
+        <div class="row">
+          <span class="label">Websocket</span>
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span class="value" id="relay-url">—</span>
+            <button class="copy" id="copy-url" type="button">Copy</button>
+          </div>
+        </div>
+        <div class="row" id="row-software" hidden>
+          <span class="label">Software</span>
+          <span class="value" id="relay-software">—</span>
+        </div>
+        <div class="row" id="row-contact" hidden>
+          <span class="label">Contact</span>
+          <span class="value" id="relay-contact">—</span>
+        </div>
+        <div class="row" id="row-nips" hidden>
+          <span class="label">Supported NIPs</span>
+          <div class="nips" id="relay-nips"></div>
+        </div>
+      </div>
+
+      <footer>Please use a Nostr client to connect.</footer>
+    </main>
+
+    <script>
+      (function () {
+        var statusEl = document.getElementById("status");
+        var statusText = document.getElementById("status-text");
+        var nameEl = document.getElementById("relay-name");
+        var descEl = document.getElementById("relay-description");
+        var panel = document.getElementById("panel");
+        var urlEl = document.getElementById("relay-url");
+        var softwareRow = document.getElementById("row-software");
+        var softwareEl = document.getElementById("relay-software");
+        var contactRow = document.getElementById("row-contact");
+        var contactEl = document.getElementById("relay-contact");
+        var nipsRow = document.getElementById("row-nips");
+        var nipsEl = document.getElementById("relay-nips");
+        var copyBtn = document.getElementById("copy-url");
+
+        function setOffline() {
+          statusEl.setAttribute("data-state", "offline");
+          statusText.textContent = "Relay unreachable";
+        }
+
+        fetch("/", { headers: { Accept: "application/nostr+json" } })
+          .then(function (res) {
+            if (!res.ok) throw new Error("bad status");
+            return res.json();
+          })
+          .then(function (info) {
+            statusEl.setAttribute("data-state", "online");
+            statusText.textContent = "Online";
+
+            if (info.name) {
+              nameEl.textContent = info.name;
+              document.title = info.name;
+            }
+
+            if (info.description) {
+              descEl.textContent = info.description;
+              descEl.hidden = false;
+            }
+
+            var wsUrl = location.origin.replace(/^http/, "ws");
+            urlEl.textContent = wsUrl;
+            copyBtn.addEventListener("click", function () {
+              navigator.clipboard.writeText(wsUrl).then(function () {
+                copyBtn.textContent = "Copied";
+                setTimeout(function () {
+                  copyBtn.textContent = "Copy";
+                }, 1200);
+              });
+            });
+
+            if (info.software) {
+              var label = info.software.replace(/^https?:\/\//, "");
+              if (info.version) label += " " + info.version;
+              softwareEl.textContent = label;
+              softwareRow.hidden = false;
+            }
+
+            if (info.contact) {
+              contactEl.textContent = info.contact;
+              contactRow.hidden = false;
+            }
+
+            if (Array.isArray(info.supported_nips) && info.supported_nips.length) {
+              info.supported_nips.forEach(function (n) {
+                var span = document.createElement("span");
+                span.className = "nip";
+                span.textContent = "NIP-" + String(n).padStart(2, "0");
+                nipsEl.appendChild(span);
+              });
+              nipsRow.hidden = false;
+            }
+
+            panel.hidden = false;
+          })
+          .catch(setOffline);
+      })();
+    </script>
   </body>
 </html>
