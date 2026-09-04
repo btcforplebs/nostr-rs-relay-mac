@@ -17,6 +17,12 @@ struct RelayConfig: Codable, Equatable {
     var maxEventSize: Int = 131072 // 128KB
     var maxWSMessageBytes: Int = 131072 // 128KB
     var maxWSFrameBytes: Int = 131072 // 128KB
+    // Rate limits. 0 means unlimited (the key is then left out of config.toml,
+    // which is how nostr-rs-relay spells "no limit" — both are Option<u32>).
+    // messages_per_sec is relay-wide backpressure on the single DB writer, not
+    // per client; subscriptions_per_min is per connection.
+    var messagesPerSec: Int = 20
+    var subscriptionsPerMin: Int = 60
 
     // Security / Spam
     var spamFilterEnabled: Bool = false
@@ -91,6 +97,9 @@ extension RelayConfig {
         if let v = try c.decodeIfPresent(Int.self, forKey: .maxWSFrameBytes) ?? legacyMessageSize {
             maxWSFrameBytes = v
         }
+
+        if let v = try c.decodeIfPresent(Int.self, forKey: .messagesPerSec) { messagesPerSec = v }
+        if let v = try c.decodeIfPresent(Int.self, forKey: .subscriptionsPerMin) { subscriptionsPerMin = v }
 
         if let v = try c.decodeIfPresent(Bool.self, forKey: .spamFilterEnabled) { spamFilterEnabled = v }
         if let v = try c.decodeIfPresent([String].self, forKey: .blockedPubkeys) { blockedPubkeys = v }
@@ -292,6 +301,20 @@ class ConfigurationService: ObservableObject {
         return values.map { "\"\(tomlEscape($0))\"" }.joined(separator: ", ")
     }
 
+    /// `messages_per_sec` / `subscriptions_per_min` are `Option<u32>` in the
+    /// relay (src/config.rs), and an absent key means unlimited. Emitting `0`
+    /// would instead be a hard zero, so omit the line entirely at 0.
+    private func rateLimitLines() -> String {
+        var lines: [String] = []
+        if config.messagesPerSec > 0 {
+            lines.append("messages_per_sec = \(config.messagesPerSec)")
+        }
+        if config.subscriptionsPerMin > 0 {
+            lines.append("subscriptions_per_min = \(config.subscriptionsPerMin)")
+        }
+        return lines.joined(separator: "\n        ")
+    }
+
     private func generateTOML() -> String {
         return """
         # NostrRelayApp Configuration
@@ -317,6 +340,7 @@ class ConfigurationService: ObservableObject {
         max_event_bytes = \(config.maxEventSize)
         max_ws_message_bytes = \(config.maxWSMessageBytes)
         max_ws_frame_bytes = \(config.maxWSFrameBytes)
+        \(rateLimitLines())
 
         [logging]
         # We don't set a folder path here because we capture stdout/stderr directly from the process

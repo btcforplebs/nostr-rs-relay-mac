@@ -50,6 +50,11 @@ struct BasicSettingsView: View {
                 TextField("Max Event Size (Bytes)", value: $configService.config.maxEventSize, formatter: NumberFormatter())
                 TextField("Max WS Message (Bytes)", value: $configService.config.maxWSMessageBytes, formatter: NumberFormatter())
                 TextField("Max WS Frame (Bytes)", value: $configService.config.maxWSFrameBytes, formatter: NumberFormatter())
+                TextField("Events Per Second (0 = unlimited)", value: $configService.config.messagesPerSec, formatter: NumberFormatter())
+                TextField("Subscriptions Per Minute (0 = unlimited)", value: $configService.config.subscriptionsPerMin, formatter: NumberFormatter())
+                Text("Events per second is relay-wide: it slows the single database writer rather than limiting any one client. Subscriptions per minute is per connection.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
             .disabled(configService.config.appSpecific.useManualConfig)
             
