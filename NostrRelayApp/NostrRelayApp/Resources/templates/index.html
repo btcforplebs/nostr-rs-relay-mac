@@ -249,7 +249,7 @@
               descEl.hidden = false;
             }
 
-            var wsUrl = location.origin.replace(/^http/, "ws");
+            var wsUrl = info.id || location.origin.replace(/^http/, "ws");
             urlEl.textContent = wsUrl;
             copyBtn.addEventListener("click", function () {
               navigator.clipboard.writeText(wsUrl).then(function () {
