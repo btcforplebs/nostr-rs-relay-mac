@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0b0f" />
+    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+    <title>Relay Status</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0b0f;
+        --panel: #141319;
+        --line: #24232c;
+        --text: #f2f1f5;
+        --muted: #8b899a;
+        --accent: #b58cff;
+        --accent-dim: #7a5fb0;
+        --ok: #55d68a;
+        --down: #e0607a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        background: radial-gradient(circle at 50% 0%, #17151f 0%, var(--bg) 60%);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        padding: 6vh 20px 40px;
+      }
+
+      main {
+        width: 100%;
+        max-width: 720px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        align-self: center;
+        font-size: 13px;
+        color: var(--muted);
+        letter-spacing: 0.02em;
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+
+      .status[data-state="online"] .dot {
+        background: var(--ok);
+        box-shadow: 0 0 8px var(--ok);
+      }
+
+      .status[data-state="offline"] .dot {
+        background: var(--down);
+      }
+
+      h1 {
+        margin: 0;
+        text-align: center;
+        font-size: clamp(1.75rem, 5vw, 2.5rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+
+      .uptime {
+        margin: 0;
+        text-align: center;
+        color: var(--muted);
+        font-size: 1rem;
+      }
+
+      .uptime strong {
+        color: var(--text);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-weight: 600;
+      }
+
+      h2 {
+        margin: 0 0 2px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 14px;
+      }
+
+      .tile {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .tile .num {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 1.5rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      .tile .cap {
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .row + .row {
+        border-top: 1px solid var(--line);
+        padding-top: 14px;
+      }
+
+      .label {
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      .value {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.9rem;
+        text-align: right;
+        overflow-wrap: anywhere;
+      }
+
+      .nips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: flex-end;
+      }
+
+      .nip {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+        color: var(--accent);
+        background: rgba(181, 140, 255, 0.1);
+        border: 1px solid rgba(181, 140, 255, 0.25);
+        border-radius: 6px;
+        padding: 2px 6px;
+      }
+
+      .empty {
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      footer {
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.8rem;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      footer a {
+        color: var(--muted);
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="status" id="status" data-state="loading">
+        <span class="dot"></span>
+        <span id="status-text">Checking relay…</span>
+      </div>
+
+      <h1 id="relay-name">Relay Status</h1>
+      <p class="uptime" id="uptime" hidden>Up for <strong id="uptime-value">—</strong></p>
+
+      <section class="panel" id="traffic" hidden>
+        <h2>Traffic</h2>
+        <div class="tiles">
+          <div class="tile">
+            <span class="num" id="m-connections">—</span>
+            <span class="cap">Connections since start</span>
+          </div>
+          <div class="tile">
+            <span class="num" id="m-events-in">—</span>
+            <span class="cap">Events received</span>
+          </div>
+          <div class="tile">
+            <span class="num" id="m-events-out">—</span>
+            <span class="cap">Events sent</span>
+          </div>
+          <div class="tile">
+            <span class="num" id="m-req">—</span>
+            <span class="cap">Subscriptions</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="performance" hidden>
+        <h2>Performance</h2>
+        <div class="row">
+          <span class="label">Average subscription response</span>
+          <span class="value" id="m-query-ms">—</span>
+        </div>
+        <div class="row">
+          <span class="label">Average event write</span>
+          <span class="value" id="m-write-ms">—</span>
+        </div>
+        <div class="row">
+          <span class="label">Database connections in use</span>
+          <span class="value" id="m-db">—</span>
+        </div>
+        <div class="row">
+          <span class="label">Aborted queries</span>
+          <span class="value" id="m-aborts">—</span>
+        </div>
+      </section>
+
+      <section class="panel" id="relay" hidden>
+        <h2>Relay</h2>
+        <div class="row">
+          <span class="label">Websocket</span>
+          <span class="value" id="relay-url">—</span>
+        </div>
+        <div class="row" id="row-software" hidden>
+          <span class="label">Software</span>
+          <span class="value" id="relay-software">—</span>
+        </div>
+        <div class="row" id="row-contact" hidden>
+          <span class="label">Contact</span>
+          <span class="value" id="relay-contact">—</span>
+        </div>
+        <div class="row" id="row-nips" hidden>
+          <span class="label">Supported NIPs</span>
+          <span class="nips" id="relay-nips"></span>
+        </div>
+      </section>
+
+      <footer>
+        <span id="updated">—</span>
+        <span><a href="/">Home</a> · <a href="/metrics">Raw metrics</a></span>
+      </footer>
+    </main>
+
+    <script>
+      const REFRESH_MS = 5000;
+      const el = (id) => document.getElementById(id);
+
+      // Minimal Prometheus text-format parser: enough for the counters,
+      // gauges and histogram _sum/_count series this relay exposes.
+      function parseMetrics(text) {
+        const out = [];
+        for (const raw of text.split("\n")) {
+          const line = raw.trim();
+          if (!line || line.startsWith("#")) continue;
+          const match = line.match(/^([a-zA-Z_:][a-zA-Z0-9_:]*)(\{(.*)\})?\s+(.+)$/);
+          if (!match) continue;
+          const labels = {};
+          if (match[3]) {
+            for (const pair of match[3].split(",")) {
+              const kv = pair.match(/^\s*([a-zA-Z0-9_]+)="(.*)"\s*$/);
+              if (kv) labels[kv[1]] = kv[2];
+            }
+          }
+          const value = Number(match[4]);
+          if (Number.isNaN(value)) continue;
+          out.push({ name: match[1], labels, value });
+        }
+        return out;
+      }
+
+      const first = (rows, name) => {
+        const hit = rows.find((r) => r.name === name);
+        return hit ? hit.value : null;
+      };
+
+      const sum = (rows, name) =>
+        rows.filter((r) => r.name === name).reduce((acc, r) => acc + r.value, 0);
+
+      const num = (value) =>
+        value === null ? "—" : value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+      function ms(rows, base) {
+        const total = first(rows, base + "_sum");
+        const count = first(rows, base + "_count");
+        if (total === null || !count) return "—";
+        return (total / count * 1000).toFixed(1) + " ms";
+      }
+
+      function duration(seconds) {
+        if (seconds === null || seconds < 0) return "—";
+        const d = Math.floor(seconds / 86400);
+        const h = Math.floor((seconds % 86400) / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        if (d) return `${d}d ${h}h`;
+        if (h) return `${h}h ${m}m`;
+        if (m) return `${m}m ${s}s`;
+        return `${s}s`;
+      }
+
+      function setState(state, text) {
+        const status = el("status");
+        status.dataset.state = state;
+        el("status-text").textContent = text;
+      }
+
+      async function loadInfo() {
+        const res = await fetch("/", { headers: { Accept: "application/nostr+json" } });
+        if (!res.ok) throw new Error("info " + res.status);
+        const info = await res.json();
+
+        if (info.name) {
+          el("relay-name").textContent = info.name;
+          document.title = info.name + " · Status";
+        }
+        // NIP-11 `id` carries the configured relay_url; location.origin is only
+        // right when the page was reached through the public host.
+        const url = info.id || location.origin.replace(/^http/, "ws");
+        el("relay-url").textContent = url;
+        if (info.software || info.version) {
+          const software = String(info.software || "").split("/").pop();
+          el("relay-software").textContent = [software, info.version].filter(Boolean).join(" ");
+          el("row-software").hidden = false;
+        }
+        if (info.contact) {
+          el("relay-contact").textContent = info.contact;
+          el("row-contact").hidden = false;
+        }
+        if (Array.isArray(info.supported_nips) && info.supported_nips.length) {
+          el("relay-nips").innerHTML = "";
+          for (const nip of info.supported_nips) {
+            const tag = document.createElement("span");
+            tag.className = "nip";
+            tag.textContent = "NIP-" + String(nip).padStart(2, "0");
+            el("relay-nips").append(tag);
+          }
+          el("row-nips").hidden = false;
+        }
+        el("relay").hidden = false;
+      }
+
+      async function loadMetrics() {
+        const res = await fetch("/metrics", { cache: "no-store" });
+        if (!res.ok) throw new Error("metrics " + res.status);
+        const rows = parseMetrics(await res.text());
+
+        const started = first(rows, "nostr_start_time_seconds");
+        if (started) {
+          el("uptime-value").textContent = duration(Date.now() / 1000 - started);
+          el("uptime").hidden = false;
+        }
+
+        // nostr_connections_total is a lifetime counter. It cannot be turned
+        // into a concurrent count by subtracting nostr_disconnects_total: the
+        // Error::ConnError arm in nostr_server breaks out of the loop without
+        // incrementing any disconnect label, so the difference drifts upward
+        // forever. Label it for what it is instead.
+        el("m-connections").textContent = num(first(rows, "nostr_connections_total"));
+        el("m-events-in").textContent = num(first(rows, "nostr_cmd_event_total"));
+        el("m-events-out").textContent = num(sum(rows, "nostr_events_sent_total"));
+        el("m-req").textContent = num(first(rows, "nostr_cmd_req_total"));
+        el("m-query-ms").textContent = ms(rows, "nostr_query_seconds");
+        el("m-write-ms").textContent = ms(rows, "nostr_events_write_seconds");
+        el("m-db").textContent = num(first(rows, "nostr_db_connections"));
+        el("m-aborts").textContent = num(sum(rows, "nostr_query_abort_total"));
+
+        el("traffic").hidden = false;
+        el("performance").hidden = false;
+      }
+
+      let infoLoaded = false;
+
+      async function refresh() {
+        try {
+          if (!infoLoaded) {
+            await loadInfo();
+            infoLoaded = true;
+          }
+          await loadMetrics();
+          setState("online", "Relay online");
+          el("updated").textContent = "Updated " + new Date().toLocaleTimeString();
+        } catch (err) {
+          setState("offline", "Relay unreachable");
+          el("updated").textContent = "Retrying every " + REFRESH_MS / 1000 + "s";
+        }
+      }
+
+      refresh();
+      setInterval(refresh, REFRESH_MS);
+    </script>
+  </body>
+</html>

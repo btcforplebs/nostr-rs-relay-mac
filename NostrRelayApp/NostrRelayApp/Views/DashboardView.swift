@@ -162,7 +162,7 @@ struct DashboardView: View {
                 .help("Open the relay landing page")
 
                 Button {
-                    if let url = URL(string: "http://localhost:\(configService.config.port)/metrics") {
+                    if let url = URL(string: "http://localhost:\(configService.config.port)/status") {
                         NSWorkspace.shared.open(url)
                     }
                 } label: {
@@ -170,7 +170,7 @@ struct DashboardView: View {
                 }
                 .controlSize(.large)
                 .disabled(!relayService.isRunning)
-                .help("Open the raw Prometheus metrics")
+                .help("Open the relay status page")
             }
         }
         .padding(14)
