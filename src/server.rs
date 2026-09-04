@@ -228,6 +228,14 @@ async fn handle_web_request(
                 .body(Body::from(buffer))
                 .unwrap())
         }
+        // Human-readable status page, rendered from /metrics and NIP-11 in the
+        // browser. Embedded in the binary so it is always served, regardless of
+        // how the relay is installed or whether info.relay_page is configured.
+        ("/status", false) => Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "text/html; charset=UTF-8")
+            .body(Body::from(include_str!("../templates/status.html")))
+            .unwrap()),
         ("/favicon.ico", false) => {
             if let Some(favicon_bytes) = favicon {
                 trace!("returning favicon");
@@ -742,6 +750,20 @@ fn create_metrics() -> (Registry, NostrMetrics) {
         vec!["reason"].as_slice(),
     )
     .unwrap();
+    // Process start time, so the status page can render uptime without any
+    // extra endpoint. Set once here and never touched again, so it does not
+    // need a slot in NostrMetrics.
+    let start_time = IntGauge::with_opts(Opts::new(
+        "nostr_start_time_seconds",
+        "Unix timestamp of relay process start",
+    ))
+    .unwrap();
+    start_time.set(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(0)),
+    );
+    registry.register(Box::new(start_time)).unwrap();
     registry.register(Box::new(query_sub.clone())).unwrap();
     registry.register(Box::new(query_db.clone())).unwrap();
     registry.register(Box::new(write_events.clone())).unwrap();
