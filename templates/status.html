@@ -218,7 +218,7 @@
         <div class="tiles">
           <div class="tile">
             <span class="num" id="m-connections">—</span>
-            <span class="cap">Connections</span>
+            <span class="cap">Connections since start</span>
           </div>
           <div class="tile">
             <span class="num" id="m-events-in">—</span>
@@ -390,6 +390,11 @@
           el("uptime").hidden = false;
         }
 
+        // nostr_connections_total is a lifetime counter. It cannot be turned
+        // into a concurrent count by subtracting nostr_disconnects_total: the
+        // Error::ConnError arm in nostr_server breaks out of the loop without
+        // incrementing any disconnect label, so the difference drifts upward
+        // forever. Label it for what it is instead.
         el("m-connections").textContent = num(first(rows, "nostr_connections_total"));
         el("m-events-in").textContent = num(first(rows, "nostr_cmd_event_total"));
         el("m-events-out").textContent = num(sum(rows, "nostr_events_sent_total"));
